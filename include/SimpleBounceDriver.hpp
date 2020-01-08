@@ -57,7 +57,7 @@ public:
         const Eigen::VectorXd& true_vacuum,
         const Eigen::VectorXd& false_vacuum,
         const GenericPotential& potential) const override {
-            
+
             int n_fields = potential.get_number_of_fields();
 
             simplebounce::BounceCalculator bounce;
@@ -90,8 +90,10 @@ public:
                 }
             }
 
+            double action = bounce.action();
+
             delete model;
-            return BouncePath(radii, fields, bounce.action());
+            return BouncePath(radii, fields, action);
         }
 
 private:

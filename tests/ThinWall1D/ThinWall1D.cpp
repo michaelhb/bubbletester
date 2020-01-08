@@ -1,13 +1,12 @@
 #include <Eigen/Core>
 #include <iostream>
+#include <sys/time.h>
 
 #include "QuarticPotential.hpp"
 #include "GenericBounceSolver.hpp"
 #include "BP1Driver.hpp"
 #include "SimpleBounceDriver.hpp"
 #include "BouncePath.hpp"
-
-// TODO: Add more solvers, clean up console output. 
 
 namespace BubbleTester { 
 
@@ -29,16 +28,27 @@ void thin_wall_test(std::shared_ptr<GenericBounceSolver> solver) {
     while(upper - lower > tol) {
         bisect = (upper + lower) / 2.0;
 
-        std::cout << "Trying alpha = " << bisect << std::endl;
+        std::cout << "Trying alpha = " << bisect << " ";
 
         QuarticPotential potential(bisect);
 
         try {
+            struct timeval time1;
+	        struct timeval time2;
+
+            gettimeofday(&time1, NULL);
             path = solver->solve(true_vacuum, false_vacuum, potential);
+            gettimeofday(&time2, NULL);
+
             upper = bisect;
+            float elapsed = time2.tv_sec - time1.tv_sec 
+                +  (float)(time2.tv_usec - time1.tv_usec) / 1000000;
+
+            std::cout << "-> action: " << path.get_action() << " in " << elapsed << "s" << std::endl;
         }
         catch (const std::exception& e) {
             lower = bisect;
+            std::cout << "failed" << std::endl;
         }
     }
 
@@ -50,12 +60,12 @@ void thin_wall_test(std::shared_ptr<GenericBounceSolver> solver) {
 int main() {
     using namespace BubbleTester;
 
-    // std::cout << "Testing BubbleProfiler V1:" << std::endl;
-    // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
-    // thin_wall_test(bp_solver);
+    std::cout << "Testing BubbleProfiler V1:" << std::endl;
+    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
+    thin_wall_test(bp_solver);
 
     std::cout << "Testing SimpleBounce:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(50, 100);
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
     thin_wall_test(sb_solver);
 }
 
