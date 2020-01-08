@@ -58,10 +58,13 @@ public:
         const Eigen::VectorXd& false_vacuum,
         const GenericPotential& potential) const override {
             
+            int n_fields = potential.get_number_of_fields();
+
             simplebounce::BounceCalculator bounce;
             bounce.setRmax(rmax);
             bounce.setDimension(4);
             bounce.setN(grid);
+            bounce.setNphi(n_fields);
 
             // needs delete
             simplebounce::GenericModel *model = new SimpleBouncePotential(potential);
@@ -75,8 +78,6 @@ public:
             bounce.solve();
 
             // Extract results
-            int n_fields = potential.get_number_of_fields();
-
             Eigen::VectorXd radii(grid);
             for (int i = 0; i < grid; ++i) {
                 radii(i) = bounce.r(i);

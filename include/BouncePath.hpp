@@ -7,6 +7,8 @@ namespace BubbleTester {
 
 class BouncePath {
 public:
+    BouncePath() = default;
+    
     BouncePath(const Eigen::VectorXd& radii_,
                const Eigen::MatrixXd& profiles_,
                double action_) {

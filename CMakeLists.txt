@@ -10,9 +10,9 @@ find_package(libbubbler REQUIRED)
 # Find & set up effpotential (new style)
 find_package(effpotential REQUIRED)
 
-# Check we can link everything to the test executable
-add_executable(test_linkage src/test_linkage.cpp)
-target_link_libraries(test_linkage ${LIBBUBBLER_LIBRARIES})
-target_include_directories(test_linkage PUBLIC ${LIBBUBBLER_INCLUDE_DIRS})
-target_include_directories(test_linkage PUBLIC $<INSTALL_INTERFACE:include/libeffpotential>)
-set_target_properties(test_linkage PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+# List source files so tests can access them (surely there's a better way?)
+set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp)
+
+# Set up the tests
+add_subdirectory(tests)
+

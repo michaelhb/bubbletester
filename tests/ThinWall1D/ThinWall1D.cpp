@@ -4,6 +4,7 @@
 #include "QuarticPotential.hpp"
 #include "GenericBounceSolver.hpp"
 #include "BP1Driver.hpp"
+#include "SimpleBounceDriver.hpp"
 #include "BouncePath.hpp"
 
 // TODO: Add more solvers, clean up console output. 
@@ -49,7 +50,12 @@ void thin_wall_test(std::shared_ptr<GenericBounceSolver> solver) {
 int main() {
     using namespace BubbleTester;
 
-    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
-    thin_wall_test(bp_solver);
+    // std::cout << "Testing BubbleProfiler V1:" << std::endl;
+    // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
+    // thin_wall_test(bp_solver);
+
+    std::cout << "Testing SimpleBounce:" << std::endl;
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(50, 100);
+    thin_wall_test(sb_solver);
 }
 

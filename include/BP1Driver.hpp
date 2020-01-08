@@ -23,6 +23,10 @@ public:
 
     BubbleProfilerPotential(const GenericPotential& potential_) :
         potential(potential_) {
+        int n_fields = potential.get_number_of_fields();
+        origin = Eigen::VectorXd::Zero(n_fields);
+        origin_translation = Eigen::VectorXd::Zero(n_fields);
+        basis_transform = Eigen::MatrixXd::Identity(n_fields, n_fields);
     }
 
     virtual BubbleProfilerPotential * clone() const override {
@@ -81,12 +85,12 @@ void BubbleProfilerPotential::add_constant_term(double constant) {
 
 //////// Wrapper class for the BP1 perturbative profiler 
 
-class BP1BounceSolver : GenericBounceSolver {
+class BP1BounceSolver : public GenericBounceSolver {
 public:
     BouncePath solve(
         const Eigen::VectorXd& true_vacuum,
         const Eigen::VectorXd& false_vacuum,
-        const GenericPotential& potential) {
+        const GenericPotential& potential) const override {
             using namespace BubbleProfiler;
 
             BubbleProfilerPotential bp_potential(potential);
@@ -125,7 +129,7 @@ public:
             convergence_tester->set_max_iterations(30);
             profiler.set_convergence_tester(convergence_tester);
 
-            Dummy_observer observer();
+            Dummy_observer observer;
             profiler.calculate_bubble_profile(bp_potential, observer);
 
             Field_profiles profiles = profiler.get_bubble_profile();
