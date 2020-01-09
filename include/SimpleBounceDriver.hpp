@@ -62,7 +62,7 @@ public:
 
             simplebounce::BounceCalculator bounce;
             bounce.setRmax(rmax);
-            bounce.setDimension(4);
+            bounce.setDimension(3);
             bounce.setN(grid);
             bounce.setNphi(n_fields);
 

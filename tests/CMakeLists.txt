@@ -1,2 +1,1 @@
 add_subdirectory(ThinWall1D)
-add_subdirectory(SimpleBounceTemp)
