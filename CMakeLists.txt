@@ -11,7 +11,9 @@ find_package(libbubbler REQUIRED)
 find_package(effpotential REQUIRED)
 
 # List source files so tests can access them (surely there's a better way?)
-set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp)
+set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp
+              ${PROJECT_SOURCE_DIR}/src/FiniteTempPotential.cpp
+)
 
 # Set up the tests
 add_subdirectory(tests)

@@ -60,11 +60,17 @@ double BubbleProfilerPotential::operator()(const Eigen::VectorXd& coords) const 
 }
 
 double BubbleProfilerPotential::partial(const Eigen::VectorXd& coords, int i) const {
-    return potential.partial(coords, i);
+    Eigen::VectorXd internal_coords =
+      (basis_transform * coords) + origin_translation;
+
+    return potential.partial(internal_coords, i);
 }
 
 double BubbleProfilerPotential::partial(const Eigen::VectorXd& coords, int i, int j) const {
-    return potential.partial(coords, i, j);
+    Eigen::VectorXd internal_coords =
+      (basis_transform * coords) + origin_translation;
+
+    return potential.partial(internal_coords, i, j);
 }
 
 std::size_t BubbleProfilerPotential::get_number_of_fields() const {
