@@ -23,7 +23,7 @@ public:
 
     BubbleProfilerPotential(const GenericPotential& potential_) :
         potential(potential_) {
-        int n_fields = potential.get_number_of_fields();
+        n_fields = potential.get_number_of_fields();
         origin = Eigen::VectorXd::Zero(n_fields);
         origin_translation = Eigen::VectorXd::Zero(n_fields);
         basis_transform = Eigen::MatrixXd::Identity(n_fields, n_fields);
@@ -114,7 +114,7 @@ public:
 
             double domain_start = -1;
             double domain_end = -1;
-            double initial_step_size = 0.1;
+            double initial_step_size = 0.001;
             double interpolation_fraction = 0.1;
 
             Field_profiles ansatz = guesser->get_profile_guess(

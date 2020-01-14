@@ -22,7 +22,8 @@ public:
         // *chuckles* I'm in danger...
         Eigen::VectorXd phi_vec(nphi());
         for (int i = 0; i < nphi(); ++i) {
-            phi_vec << phi[i];
+            // phi_vec << phi[i];
+            phi_vec(i) = phi[i];
         }
 
         return potential(phi_vec);
@@ -31,7 +32,8 @@ public:
     void calcDvdphi(const double *phi, double *dvdphi) const {
         Eigen::VectorXd phi_vec(nphi());
         for (int i = 0; i < nphi(); ++i) {
-            phi_vec << phi[i];
+            // phi_vec << phi[i];
+            phi_vec(i) = phi[i];
         }
         
         for (int j = 0; j < nphi(); ++j) {
@@ -65,6 +67,7 @@ public:
             bounce.setDimension(3);
             bounce.setN(grid);
             bounce.setNphi(n_fields);
+            bounce.verboseOn();
 
             // needs delete
             simplebounce::GenericModel *model = new SimpleBouncePotential(potential);

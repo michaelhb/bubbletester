@@ -23,12 +23,20 @@ struct TestPoint {
 void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver) {
     for (auto& test : tests) {
         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
-        BouncePath path = solver->solve(test.low_vevs, test.high_vevs, potential);
-        std::cout << "T = " << test.T << ", action = " << path.get_action() << std::endl;
+        try {
+            std::cout << "T = " << test.T;
+            BouncePath path = solver->solve(test.low_vevs, test.high_vevs, potential);
+            std::cout << ", action = " << path.get_action() << std::endl;
+        }
+        catch (const std::exception& e) {
+            std::cout << " failed: " << e.what() << std::endl;
+        }
     }
 }
-
+};
 int main() {
+    using namespace BubbleTester;
+
     std::vector<TestPoint> tests;
 
     tests.push_back(
@@ -78,8 +86,7 @@ int main() {
     run_test(tests, model, bp_solver);
 
     std::cout << "Testing SimpleBounce:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(100., 100.);
     run_test(tests, model, sb_solver);
 }
 
-};
