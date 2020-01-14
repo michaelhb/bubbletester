@@ -48,9 +48,10 @@ private:
 class SimpleBounceSolver : public GenericBounceSolver {
 public:
 
-    SimpleBounceSolver(double rmax_, int grid_) {
+    SimpleBounceSolver(double rmax_, int grid_, bool verbose_) {
         rmax = rmax_;
         grid = grid_;
+        verbose = verbose_;
     }
 
     BouncePath solve(
@@ -65,7 +66,7 @@ public:
             bounce.setDimension(3);
             bounce.setN(grid);
             bounce.setNphi(n_fields);
-            // bounce.verboseOn();
+            if (verbose) bounce.verboseOn();
 
             // needs delete
             simplebounce::GenericModel *model = new SimpleBouncePotential(potential);
@@ -98,6 +99,7 @@ public:
         }
 
 private:
+    bool verbose;
     double rmax;
     int grid;
     

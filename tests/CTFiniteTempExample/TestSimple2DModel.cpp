@@ -25,7 +25,7 @@ void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr
         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
         
         if (plot) {
-            double plot_scale = 0.5*246.;
+            double plot_scale = 1.5*246.;
             double x_min = -plot_scale;
             double x_max = plot_scale;
             double y_min = -plot_scale;
@@ -94,17 +94,17 @@ int main() {
     double mu = 25.;
     double Y1 = .1;
     double Y2 = .15;
-    double n = 30.;
+    int n = 30.;
     double renorm_scale = 246.;
 
     Simple2DModel model = Simple2DModel(m1, m2, mu, Y1, Y2, n, renorm_scale);
 
-    std::cout << "Testing BubbleProfiler V1:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
-    run_test(tests, model, bp_solver, true);
+    // std::cout << "Testing BubbleProfiler V1:" << std::endl;
+    // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
+    // run_test(tests, model, bp_solver, true);
 
     std::cout << "Testing SimpleBounce:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(100., 100.);
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., true);
     run_test(tests, model, sb_solver, true);
 }
 

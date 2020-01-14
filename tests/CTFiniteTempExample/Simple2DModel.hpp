@@ -7,7 +7,7 @@ namespace BubbleTester {
 
 class Simple2DModel : public EffPotential::Abstract_input_model {
 public:
-    Simple2DModel(double m1_, double m2_, double mu_, double Y1_, double Y2_, double n_, double renorm_scale_) {
+    Simple2DModel(double m1_, double m2_, double mu_, double Y1_, double Y2_, int n_, double renorm_scale_) {
         renorm_scale = renorm_scale_;
         m1 = m1_;
         m2 = m2_;
@@ -17,7 +17,7 @@ public:
         mu2 = mu_*mu_;
         y1 = Y1_;
         y2 = Y2_;
-        boson_constants = {1.5, 1.5, n_};
+        boson_dof = {1, 1, n_};
     }
 
     virtual double V_tree(const Eigen::VectorXd &coords, double) override;
@@ -48,8 +48,8 @@ private:
     double y1=0.1;
     double y2=0.15;
 
-    std::vector<int> boson_dof = {1,  1,  30 };
-    std::vector<double> boson_constants= {};
+    std::vector<int> boson_dof = {};
+    std::vector<double> boson_constants = {1.5, 1.5, 1.5};
     std::vector<int> fermion_dof{};
     size_t N_dim = 2;
 };

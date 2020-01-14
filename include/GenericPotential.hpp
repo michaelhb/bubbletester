@@ -37,7 +37,8 @@ public:
 
    virtual std::size_t get_number_of_fields() const = 0;
 
-   void plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, double y_min, double y_max);
+   void plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, 
+      double y_min, double y_max, double cutoff=-1.);
 
 
 private:
@@ -48,6 +49,7 @@ private:
       unsigned int axis_size, double x_min, double x_max, double y_min, double y_max);
    double find_minimum(std::vector<data_row> grid);
    void shift_to_zero(std::vector<data_row>& grid);
+   void apply_cutoff(std::vector<data_row>& grid, double cutoff);
 
 };
 

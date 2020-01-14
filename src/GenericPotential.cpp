@@ -5,13 +5,20 @@
 namespace BubbleTester {
 
 //! Utility method for plotting 2d potentials.
-void GenericPotential::plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, double y_min, double y_max) {
+void GenericPotential::plot_2d(
+    std::string title, unsigned int axis_size, double x_min, double x_max, 
+    double y_min, double y_max, double cutoff) {
+
     if (get_number_of_fields() != 2) {
         throw std::invalid_argument("Can only get potential grid for 2 field potentials");
     }
 
     std::vector<data_row> grid = get_2d_potential_grid(axis_size, x_min, x_max, y_min, y_max);
-    // remove("/tmp/contour.txt");
+    
+    if (cutoff > 0) {
+        apply_cutoff(grid, cutoff);
+    }
+
     Gnuplot gp("tee /tmp/plot.gp | gnuplot -persist");
     gp << "reset\n";
     gp << "set dgrid3d 200,200,1\n";
@@ -58,6 +65,15 @@ double GenericPotential::find_minimum(std::vector<data_row> grid) {
     }
 
     return min;
+}
+
+void GenericPotential::apply_cutoff(std::vector<data_row>& grid, double cutoff) {
+    for (auto& row: grid) {
+        row = std::make_tuple(
+            std::get<0>(row),
+            std::get<1>(row), 
+            std::min(std::get<2>(row), cutoff));
+    }
 }
 
 //! Get the data for 2d potential plots 
