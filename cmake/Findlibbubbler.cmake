@@ -13,6 +13,7 @@ find_library(LIBBUBBLER_LIBRARY NAMES libbubbler.a)
 # Find all the dependencies required to use libbubbler
 find_package(Boost 1.53.0 REQUIRED
   COMPONENTS
+  iostreams
   filesystem
   program_options
   system

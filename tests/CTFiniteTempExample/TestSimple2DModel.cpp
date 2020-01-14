@@ -17,12 +17,28 @@ struct TestPoint {
     double T;
     Eigen::VectorXd low_vevs;
     Eigen::VectorXd high_vevs;
-    double CTAction;
+    double CTAction; // CosmoTransitions result
 };
 
-void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver) {
+void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver, bool plot) {
     for (auto& test : tests) {
         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
+        
+        if (plot) {
+            double plot_scale = 0.5*246.;
+            double x_min = -plot_scale;
+            double x_max = plot_scale;
+            double y_min = -plot_scale;
+            double y_max = plot_scale;
+            unsigned int axis_size = 200;
+
+            std::ostringstream title;
+            title << "T = ";
+            title << test.T;
+
+            potential.plot_2d(title.str(), axis_size, x_min, x_max, y_min, y_max);
+        }
+
         try {
             std::cout << "T = " << test.T;
             BouncePath path = solver->solve(test.low_vevs, test.high_vevs, potential);
@@ -33,7 +49,9 @@ void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr
         }
     }
 }
+
 };
+
 int main() {
     using namespace BubbleTester;
 
@@ -71,22 +89,22 @@ int main() {
         TestPoint{106.0, vacua(268.48710682, 330.55764111), vacua(221.70370405, -149.6397163), 583694.5594380731});
 
     // set up the model
-    double m1 = 100.;
-    double m2 = 1000.;
-    double mu = 1.;
-    double Y1 = 1.5;
-    double Y2 = 0.1;
-    double n = 20.;
+    double m1 = 120.;
+    double m2 = 50.;
+    double mu = 25.;
+    double Y1 = .1;
+    double Y2 = .15;
+    double n = 30.;
     double renorm_scale = 246.;
 
     Simple2DModel model = Simple2DModel(m1, m2, mu, Y1, Y2, n, renorm_scale);
 
     std::cout << "Testing BubbleProfiler V1:" << std::endl;
     std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
-    run_test(tests, model, bp_solver);
+    run_test(tests, model, bp_solver, true);
 
     std::cout << "Testing SimpleBounce:" << std::endl;
     std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(100., 100.);
-    run_test(tests, model, sb_solver);
+    run_test(tests, model, sb_solver, true);
 }
 

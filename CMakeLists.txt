@@ -11,6 +11,7 @@ find_package(effpotential REQUIRED)
 # List source files so tests can access them (surely there's a better way?)
 set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp
               ${PROJECT_SOURCE_DIR}/src/FiniteTempPotential.cpp
+              ${PROJECT_SOURCE_DIR}/src/GenericPotential.cpp
 )
 
 # Set up the tests

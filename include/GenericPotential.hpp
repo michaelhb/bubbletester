@@ -2,6 +2,10 @@
 #define BUBBLETESTER_GENERICPOTENTIAL_HPP_INCLUDED
 
 #include <Eigen/Core>
+#include <exception>
+#include <vector>
+
+typedef std::tuple<double, double, double> data_row; // For 2D plots
 
 namespace BubbleTester {
 
@@ -32,6 +36,19 @@ public:
    virtual double partial(const Eigen::VectorXd& coords, int i, int j) const = 0;
 
    virtual std::size_t get_number_of_fields() const = 0;
+
+   void plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, double y_min, double y_max);
+
+
+private:
+
+   // Various utility methods for making the 2D plots
+
+   std::vector<std::tuple<double, double, double>> get_2d_potential_grid(
+      unsigned int axis_size, double x_min, double x_max, double y_min, double y_max);
+   double find_minimum(std::vector<data_row> grid);
+   void shift_to_zero(std::vector<data_row>& grid);
+
 };
 
 };
