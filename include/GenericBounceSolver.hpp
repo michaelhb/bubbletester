@@ -14,6 +14,8 @@ public:
         const Eigen::VectorXd& true_vacuum,
         const Eigen::VectorXd& false_vacuum,
         const GenericPotential& potential) const = 0;
+
+    virtual void set_verbose(bool verbose) = 0;
 };
 
 };

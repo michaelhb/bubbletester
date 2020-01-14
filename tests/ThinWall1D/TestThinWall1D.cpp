@@ -65,7 +65,7 @@ int main() {
     thin_wall_test(bp_solver);
 
     std::cout << "Testing SimpleBounce:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., false);
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
     thin_wall_test(sb_solver);
 }
 

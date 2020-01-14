@@ -48,10 +48,9 @@ private:
 class SimpleBounceSolver : public GenericBounceSolver {
 public:
 
-    SimpleBounceSolver(double rmax_, int grid_, bool verbose_) {
+    SimpleBounceSolver(double rmax_, int grid_) {
         rmax = rmax_;
         grid = grid_;
-        verbose = verbose_;
     }
 
     BouncePath solve(
@@ -97,9 +96,13 @@ public:
             delete model;
             return BouncePath(radii, fields, action);
         }
+    
+    void set_verbose(bool verbose_) override {
+        verbose = verbose_;
+    }
 
 private:
-    bool verbose;
+    bool verbose = false;
     double rmax;
     int grid;
     

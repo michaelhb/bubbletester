@@ -42,6 +42,8 @@ public:
     virtual void apply_basis_change(const Eigen::MatrixXd&) override;
     virtual void add_constant_term(double) override;
 
+
+
 private:
     const GenericPotential& potential;
     std::size_t n_fields;
@@ -88,6 +90,8 @@ void BubbleProfilerPotential::apply_basis_change(const Eigen::MatrixXd& new_basi
 void BubbleProfilerPotential::add_constant_term(double constant) {
     constant_term += constant;
 }
+
+
 
 //////// Wrapper class for the BP1 perturbative profiler 
 
@@ -146,6 +150,15 @@ public:
                 profiler.get_euclidean_action());
         }
 
+        void set_verbose(bool verbose) override {
+            using namespace BubbleProfiler;
+            auto& logging_manager = logging::Logging_manager::get_manager();
+            if (verbose) {
+                logging_manager.set_minimum_log_level(logging::Log_level::Trace);
+            } else {
+                logging_manager.set_minimum_log_level(logging::Log_level::Warning);
+            }
+        }
 };
 
 };

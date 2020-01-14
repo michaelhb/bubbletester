@@ -99,12 +99,13 @@ int main() {
 
     Simple2DModel model = Simple2DModel(m1, m2, mu, Y1, Y2, n, renorm_scale);
 
-    // std::cout << "Testing BubbleProfiler V1:" << std::endl;
-    // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
-    // run_test(tests, model, bp_solver, true);
+    std::cout << "Testing BubbleProfiler V1:" << std::endl;
+    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
+    bp_solver->set_verbose(true);
+    run_test(tests, model, bp_solver, false);
 
-    std::cout << "Testing SimpleBounce:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., true);
-    run_test(tests, model, sb_solver, true);
+    // std::cout << "Testing SimpleBounce:" << std::endl;
+    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
+    // run_test(tests, model, sb_solver, true);
 }
 
