@@ -114,7 +114,7 @@ public:
 
             double domain_start = -1;
             double domain_end = -1;
-            double initial_step_size = 0.001;
+            double initial_step_size = 0.1;
             double interpolation_fraction = 0.1;
 
             Field_profiles ansatz = guesser->get_profile_guess(
