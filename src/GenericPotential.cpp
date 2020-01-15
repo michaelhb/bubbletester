@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "GenericPotential.hpp"
 #include "gnuplot-iostream.h"
 #include <stdio.h>
@@ -43,6 +44,16 @@ void GenericPotential::plot_2d(
     gp << "plot '-' u 1:2:3 w image not, '/tmp/contour.txt' u 1:2 w l not\n";
 
     gp.send1d(grid);
+}
+
+void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
+     Eigen::VectorXd true_vac, Eigen::VectorXd false_vac, double margin, double cutoff) {
+    double x_max = std::max(true_vac(0), false_vac(0)) + margin;
+    double x_min = std::min(true_vac(0), false_vac(0)) - margin;
+    double y_max = std::max(true_vac(1), false_vac(1)) + margin;
+    double y_min = std::min(true_vac(1), false_vac(1)) - margin;
+    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, cutoff);
+
 }
 
 void GenericPotential::shift_to_zero(std::vector<data_row>& grid) {

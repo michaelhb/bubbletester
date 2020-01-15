@@ -37,8 +37,13 @@ public:
 
    virtual std::size_t get_number_of_fields() const = 0;
 
+   //! Contour plot of the potential (2 field potentials only)
    void plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, 
       double y_min, double y_max, double cutoff=-1.);
+
+   //! Contour plot with auto plot box around vacua (2 field potentials only)
+   void plot_2d(std::string title, unsigned int axis_size, Eigen::VectorXd true_vac, 
+      Eigen::VectorXd false_vac, double margin, double cutoff=-1.);
 
 
 private:

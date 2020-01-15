@@ -25,18 +25,14 @@ void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr
         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
         
         if (plot) {
-            double plot_scale = 1.5*246.;
-            double x_min = -plot_scale;
-            double x_max = plot_scale;
-            double y_min = -plot_scale;
-            double y_max = plot_scale;
+            double margin = 50.;
             unsigned int axis_size = 200;
 
             std::ostringstream title;
             title << "T = ";
             title << test.T;
 
-            potential.plot_2d(title.str(), axis_size, x_min, x_max, y_min, y_max);
+            potential.plot_2d(title.str(), axis_size, test.low_vevs, test.high_vevs, margin);
         }
 
         try {
@@ -104,8 +100,9 @@ int main() {
     bp_solver->set_verbose(true);
     run_test(tests, model, bp_solver, false);
 
-    // std::cout << "Testing SimpleBounce:" << std::endl;
-    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
-    // run_test(tests, model, sb_solver, true);
+    std::cout << "Testing SimpleBounce:" << std::endl;
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
+    sb_solver->set_verbose(true);
+    run_test(tests, model, sb_solver, true);
 }
 
