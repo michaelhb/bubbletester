@@ -4,9 +4,9 @@ project(libbubbler_example)
 enable_language(CXX)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
-# Find bubbleprofiler, effectivepotential
 find_package(libbubbler REQUIRED)
 find_package(effpotential REQUIRED)
+find_package(CASADI REQUIRED)
 
 # List source files so tests can access them (surely there's a better way?)
 set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp
