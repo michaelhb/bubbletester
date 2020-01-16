@@ -11,6 +11,7 @@ public:
         if (alpha <= 0.5 || alpha >= 0.75) {
             throw "alpha must be between 0.5 and 0.75";
         }
+        GenericPotential::init();
     }
 
     virtual double operator()(const Eigen::VectorXd& coords) const override;
@@ -23,35 +24,34 @@ public:
 private:
    double alpha{0.6};
    double E{1.};
-   double origin{0.};
-   double scale{1.};
-   double offset{0.};
 };
 
 double QuarticPotential::operator()(const Eigen::VectorXd& coords) const {
-    double coord = coords(0);
-
-    const double phip = scale * coord + origin;
-    return 0.5 * (3. - 4. * alpha) * E * phip * phip
+    double phip = transform_coords(coords)(0);
+    
+    double res = 0.5 * (3. - 4. * alpha) * E * phip * phip
         - E * phip * phip * phip
-        + alpha * E * phip * phip * phip * phip
-        + offset;
+        + alpha * E * phip * phip * phip * phip;
+    
+    return transform_v(res, true);
 }
 
 double QuarticPotential::partial(const Eigen::VectorXd& coords, int i) const {
-    double coord = coords(0);
+    double phip = transform_coords(coords)(0);
 
-    const double phip = scale * coord + origin;
-    return (3. - 4. * alpha) * E * phip - 3. * E * phip * phip
+    double res = (3. - 4. * alpha) * E * phip - 3. * E * phip * phip
         + 4. * alpha * E * phip * phip * phip;
+
+    return transform_v(res);
 }
 
 double QuarticPotential::partial(const Eigen::VectorXd& coords, int i, int j) const {
-    double coord = coords(0);
+    double phip = transform_coords(coords)(0);
 
-    const double phip = scale * coord + origin;
-    return (3. - 4. * alpha) * E - 6. * E * phip
+    double res = (3. - 4. * alpha) * E - 6. * E * phip
         + 12. * alpha * E * phip * phip;
+
+    return transform_v(res);
 }
 
 };

@@ -11,6 +11,7 @@ public:
     FiniteTempPotential(EffPotential::Abstract_input_model& model, double T_) 
         : potential(EffPotential::Effective_potential(model)), T(T_) {
         n_fields = potential.get_Ndim();
+        GenericPotential::init();
     }
 
     virtual double operator()(const Eigen::VectorXd& coords) const override;

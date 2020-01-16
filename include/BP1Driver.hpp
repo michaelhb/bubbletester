@@ -42,9 +42,8 @@ public:
     virtual void apply_basis_change(const Eigen::MatrixXd&) override;
     virtual void add_constant_term(double) override;
 
-
-
 private:
+    
     const GenericPotential& potential;
     std::size_t n_fields;
 
@@ -80,7 +79,7 @@ std::size_t BubbleProfilerPotential::get_number_of_fields() const {
 }
 
 void BubbleProfilerPotential::translate_origin(const Eigen::VectorXd& translation) {
-    origin_translation = translation;
+    origin_translation += translation;
 }
 
 void BubbleProfilerPotential::apply_basis_change(const Eigen::MatrixXd& new_basis) {
