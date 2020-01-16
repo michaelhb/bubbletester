@@ -98,7 +98,7 @@ int main() {
     std::cout << "Testing BubbleProfiler V1:" << std::endl;
     std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
     bp_solver->set_verbose(true);
-    run_test(tests, model, bp_solver, false);
+    run_test(tests, model, bp_solver, true);
 
     std::cout << "Testing SimpleBounce:" << std::endl;
     std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);

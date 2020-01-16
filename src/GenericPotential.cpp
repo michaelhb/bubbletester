@@ -1,7 +1,8 @@
 #include <algorithm>
+#include <stdio.h>
+#include <cmath>
 #include "GenericPotential.hpp"
 #include "gnuplot-iostream.h"
-#include <stdio.h>
 
 namespace BubbleTester {
 
@@ -118,5 +119,30 @@ std::vector<std::tuple<double, double, double>> GenericPotential::get_2d_potenti
     return grid;
 }
 
+double GenericPotential::normalise(GenericPotential& potential, 
+      Eigen::VectorXd true_vacuum, Eigen::VectorXd false_vacuum) {
+    
+    Eigen::VectorXd origin = Eigen::VectorXd::Zero(potential.get_number_of_fields());
+    double v_phi_t = potential(true_vacuum);
+    double v_phi_f = potential(false_vacuum);
+
+    double potential_scaling = std::pow(v_phi_f - v_phi_t, -1);
+    double field_scaling = std::pow((false_vacuum - true_vacuum).norm(), -1);
+
+    // Translate origin to true vacuum
+    potential.translate_origin(false_vacuum);
+
+    // Offset potential so v(phi_f) = 0
+    potential.offset_potential(-1.0*v_phi_f);
+
+    // Scale potential so v(phi_f) - v(phi_t) = 1
+    potential.scale_potential(potential_scaling);
+
+    // Scale fields so that |phi_f - phi_t| = 1
+    potential.scale_fields(field_scaling);
+
+    // Return the rescaling factor
+    return potential_scaling*std::pow(field_scaling, 2);
+}
 
 };

@@ -71,6 +71,13 @@ public:
    void plot_2d(std::string title, unsigned int axis_size, Eigen::VectorXd true_vac, 
       Eigen::VectorXd false_vac, double margin, double cutoff=-1.);
 
+   //! Normalise the potential so that v(phi_f) - v(phi_t) = 1,
+   // V(phi_f) = 0, phi_f = 0, and |phi_f - phi_t| = 1.
+   // Returns a multiplier which can be used to recover the 
+   // original action. 
+   static double normalise(GenericPotential& potential, 
+      Eigen::VectorXd true_vacuum, Eigen::VectorXd false_vacuum);
+
 protected:
    //! Transform incoming coordinates, first translating then scaling. 
    Eigen::VectorXd transform_coords(Eigen::VectorXd coords) const {
