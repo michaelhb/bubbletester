@@ -80,7 +80,7 @@ protected:
    //! Transform outgoing potential & derivative scalars. Use offset=false for derivs.
    double transform_v(double v, bool offset=false) const {
       if (offset) {
-         return (v + offset)*v_scale;
+         return (v + v_offset)*v_scale;
       }
       else {
          return v*v_scale;
