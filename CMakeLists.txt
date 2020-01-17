@@ -12,6 +12,7 @@ find_package(CASADI REQUIRED)
 set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp
               ${PROJECT_SOURCE_DIR}/src/FiniteTempPotential.cpp
               ${PROJECT_SOURCE_DIR}/src/GenericPotential.cpp
+              ${PROJECT_SOURCE_DIR}/src/Rotation.cpp
 )
 
 # Set up the tests

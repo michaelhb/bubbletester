@@ -1,15 +1,16 @@
 #include <algorithm>
 #include <stdio.h>
 #include <cmath>
-#include "GenericPotential.hpp"
 #include "gnuplot-iostream.h"
+#include "GenericPotential.hpp"
+#include "Rotation.hpp"
 
 namespace BubbleTester {
 
 //! Utility method for plotting 2d potentials.
 void GenericPotential::plot_2d(
     std::string title, unsigned int axis_size, double x_min, double x_max, 
-    double y_min, double y_max, double cutoff) {
+    double y_min, double y_max, double cutoff, std::vector<point_marker> point_marks) {
 
     if (get_number_of_fields() != 2) {
         throw std::invalid_argument("Can only get potential grid for 2 field potentials");
@@ -36,13 +37,20 @@ void GenericPotential::plot_2d(
 
     gp << "unset contour\n";
     gp << "unset table\n";
+    gp << "unset dgrid3d\n";
     gp << "set autoscale fix\n";
 
     gp << "set title '" << title << "'\n";
     gp << "set xlabel 'x'\n";
     gp << "set ylabel 'y'\n";
 
+    for (int i = 0; i < point_marks.size(); ++i) {
+        gp << "set label " << i + 1 << " at " << std::get<0>(point_marks[i]) 
+        << "," << std::get<1>(point_marks[i]) << " point pointtype 2 ps 5 front\n";
+    }
+
     gp << "plot '-' u 1:2:3 w image not, '/tmp/contour.txt' u 1:2 w l not\n";
+    gp << "plot '/tmp/contour.txt' u 1:2 w l not\n";
 
     gp.send1d(grid);
 }
@@ -53,7 +61,12 @@ void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
     double x_min = std::min(true_vac(0), false_vac(0)) - margin;
     double y_max = std::max(true_vac(1), false_vac(1)) + margin;
     double y_min = std::min(true_vac(1), false_vac(1)) - margin;
-    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, cutoff);
+
+    std::vector<point_marker> vacua_marks;
+    vacua_marks.push_back(std::make_tuple(true_vac(0), true_vac(1)));
+    vacua_marks.push_back(std::make_tuple(false_vac(0), false_vac(1)));
+
+    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, cutoff, vacua_marks);
 
 }
 
@@ -126,22 +139,29 @@ double GenericPotential::normalise(GenericPotential& potential,
     double v_phi_t = potential(true_vacuum);
     double v_phi_f = potential(false_vacuum);
 
-    double potential_scaling = std::pow(v_phi_f - v_phi_t, -1);
-    double field_scaling = std::pow((false_vacuum - true_vacuum).norm(), -1);
+    double dist_true_vacuum = (false_vacuum - true_vacuum).norm();
 
     // Translate origin to true vacuum
     potential.translate_origin(false_vacuum);
 
-    // Offset potential so v(phi_f) = 0
-    potential.offset_potential(-1.0*v_phi_f);
+    // Calc new position of true vacuum
+    Eigen::VectorXd shifted_true_vacuum = false_vacuum - true_vacuum;
 
-    // Scale potential so v(phi_f) - v(phi_t) = 1
+    // Change the field basis so that the first component points to 
+    // the true vacuum, and scale so that phi_t = (1,0,...,0)
+    // double field_scaling = std::pow((false_vacuum - true_vacuum).norm(), -1);
+    double field_scaling = (false_vacuum - true_vacuum).norm();
+    Eigen::MatrixXd cob_matrix = calculate_rotation_to_target(shifted_true_vacuum);
+    potential.apply_basis_change(field_scaling*cob_matrix);
+
+    // Offset potential so that v(phi_f) = 0
+    potential.offset_potential(-1.0*potential(origin));
+
+    // // Scale potential so v(phi_f) - v(phi_t) = 1
+    double potential_scaling = std::pow(v_phi_f - v_phi_t, -1);
     potential.scale_potential(potential_scaling);
 
-    // Scale fields so that |phi_f - phi_t| = 1
-    potential.scale_fields(field_scaling);
-
-    // Return the rescaling factor
+    // Return the action rescaling factor
     return potential_scaling*std::pow(field_scaling, 2);
 }
 
