@@ -10,17 +10,13 @@ namespace BubbleTester {
 //! Utility method for plotting 2d potentials.
 void GenericPotential::plot_2d(
     std::string title, unsigned int axis_size, double x_min, double x_max, 
-    double y_min, double y_max, double cutoff, std::vector<point_marker> point_marks) {
+    double y_min, double y_max, std::vector<point_marker> point_marks) {
 
     if (get_number_of_fields() != 2) {
         throw std::invalid_argument("Can only get potential grid for 2 field potentials");
     }
 
     std::vector<data_row> grid = get_2d_potential_grid(axis_size, x_min, x_max, y_min, y_max);
-    
-    if (cutoff > 0) {
-        apply_cutoff(grid, cutoff);
-    }
 
     Gnuplot gp("tee /tmp/plot.gp | gnuplot -persist");
     gp << "reset\n";
@@ -56,7 +52,7 @@ void GenericPotential::plot_2d(
 }
 
 void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
-     Eigen::VectorXd true_vac, Eigen::VectorXd false_vac, double margin, double cutoff) {
+     Eigen::VectorXd true_vac, Eigen::VectorXd false_vac, double margin) {
     double x_max = std::max(true_vac(0), false_vac(0)) + margin;
     double x_min = std::min(true_vac(0), false_vac(0)) - margin;
     double y_max = std::max(true_vac(1), false_vac(1)) + margin;
@@ -66,7 +62,7 @@ void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
     vacua_marks.push_back(std::make_tuple(true_vac(0), true_vac(1)));
     vacua_marks.push_back(std::make_tuple(false_vac(0), false_vac(1)));
 
-    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, cutoff, vacua_marks);
+    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, vacua_marks);
 
 }
 
@@ -90,15 +86,6 @@ double GenericPotential::find_minimum(std::vector<data_row> grid) {
     }
 
     return min;
-}
-
-void GenericPotential::apply_cutoff(std::vector<data_row>& grid, double cutoff) {
-    for (auto& row: grid) {
-        row = std::make_tuple(
-            std::get<0>(row),
-            std::get<1>(row), 
-            std::min(std::get<2>(row), cutoff));
-    }
 }
 
 //! Get the data for 2d potential plots 
@@ -149,7 +136,6 @@ double GenericPotential::normalise(GenericPotential& potential,
 
     // Change the field basis so that the first component points to 
     // the true vacuum, and scale so that phi_t = (1,0,...,0)
-    // double field_scaling = std::pow((false_vacuum - true_vacuum).norm(), -1);
     double field_scaling = (false_vacuum - true_vacuum).norm();
     Eigen::MatrixXd cob_matrix = calculate_rotation_to_target(shifted_true_vacuum).transpose();
     potential.apply_basis_change(field_scaling*cob_matrix);
@@ -162,7 +148,7 @@ double GenericPotential::normalise(GenericPotential& potential,
     potential.scale_potential(potential_scaling);
 
     // Return the action rescaling factor
-    return potential_scaling*std::pow(field_scaling, 2);
+    return 1.0 / (potential_scaling*std::pow(field_scaling, 2));
 }
 
 };

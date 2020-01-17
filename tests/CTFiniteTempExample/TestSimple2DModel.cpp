@@ -24,7 +24,8 @@ struct TestPoint {
 void run_test_normalised(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver, bool plot) {
     for (auto& test : tests) {
         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
-        GenericPotential::normalise(potential, test.low_vevs, test.high_vevs);
+        double rescale = GenericPotential::normalise(potential, test.low_vevs, test.high_vevs);
+        std::cout << "rescale factor: " << rescale << std::endl;
         
         Eigen::VectorXd false_vac = Eigen::VectorXd::Zero(2);
         Eigen::VectorXd true_vac = Eigen::VectorXd::Zero(2);
@@ -43,7 +44,8 @@ void run_test_normalised(std::vector<TestPoint> tests, Simple2DModel model, std:
         try {
             std::cout << "T = " << test.T;
             BouncePath path = solver->solve(true_vac, false_vac, potential);
-            std::cout << ", action = " << path.get_action() << std::endl;
+            std::cout << ", action = " << path.get_action() << ", ";
+            std::cout << " rescaled = " << path.get_action()*rescale << std::endl;
         }
         catch (const std::exception& e) {
             std::cout << " failed: " << e.what() << std::endl;
@@ -128,13 +130,14 @@ int main() {
 
     std::cout << "Testing BubbleProfiler V1:" << std::endl;
     std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
-    bp_solver->set_verbose(true);
+    // bp_solver->set_verbose(true);
     // run_test(tests, model, bp_solver, true);
-    run_test_normalised(tests, model, bp_solver, true);
+    run_test_normalised(tests, model, bp_solver, false);
 
-    std::cout << "Testing SimpleBounce:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
-    sb_solver->set_verbose(true);
-    run_test(tests, model, sb_solver, true);
+    // std::cout << "Testing SimpleBounce:" << std::endl;
+    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
+    // sb_solver->set_verbose(true);
+    // // run_test(tests, model, sb_solver, true);
+    // run_test_normalised(tests, model, sb_solver, false);
 }
 

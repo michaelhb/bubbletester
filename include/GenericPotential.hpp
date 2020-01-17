@@ -70,12 +70,12 @@ public:
 
    //! Contour plot of the potential (2 field potentials only)
    void plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, 
-      double y_min, double y_max, double cutoff=-1.,
+      double y_min, double y_max,
       std::vector<point_marker> point_marks = std::vector<point_marker>());
 
    //! Contour plot with auto plot box around vacua (2 field potentials only)
    void plot_2d(std::string title, unsigned int axis_size, Eigen::VectorXd true_vac, 
-      Eigen::VectorXd false_vac, double margin, double cutoff=-1.);
+      Eigen::VectorXd false_vac, double margin);
 
    //! Normalise the potential so that v(phi_f) - v(phi_t) = 1,
    // V(phi_f) = 0, phi_f = 0, and |phi_f - phi_t| = 1.
@@ -112,8 +112,6 @@ protected:
 
    double find_minimum(std::vector<data_row> grid);
    void shift_to_zero(std::vector<data_row>& grid);
-   void apply_cutoff(std::vector<data_row>& grid, double cutoff);
-
 };
 
 };
