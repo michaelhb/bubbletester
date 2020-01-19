@@ -1,3 +1,6 @@
+#ifndef BUBBLETESTER_ROTATION_HPP_INCLUDED
+#define BUBBLETESTER_ROTATION_HPP_INCLUDED
+
 #include <Eigen/Core>
 
 namespace BubbleTester {
@@ -20,3 +23,5 @@ namespace BubbleTester {
     */
     Eigen::MatrixXd calculate_rotation_to_target(const Eigen::VectorXd& target);
 };
+
+#endif

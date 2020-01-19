@@ -1,2 +1,3 @@
 add_subdirectory(ThinWall1D)
 add_subdirectory(CTFiniteTempExample)
+add_subdirectory(CTAnalyticExample)
