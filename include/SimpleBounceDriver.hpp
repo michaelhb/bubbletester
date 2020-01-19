@@ -101,6 +101,11 @@ public:
         verbose = verbose_;
     }
 
+    std::string name() override {
+        return "SimpleBounce";
+    }
+
+
 private:
     bool verbose = false;
     double rmax;

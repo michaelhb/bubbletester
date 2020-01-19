@@ -22,6 +22,8 @@ public:
         }
 
     virtual void set_verbose(bool verbose) = 0;
+
+    virtual std::string name() = 0;
 };
 
 };

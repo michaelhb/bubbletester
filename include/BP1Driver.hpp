@@ -159,6 +159,10 @@ public:
                 logging_manager.set_minimum_log_level(logging::Log_level::Warning);
             }
         }
+
+        std::string name() override {
+            return "BPV1";
+        }
 };
 
 };

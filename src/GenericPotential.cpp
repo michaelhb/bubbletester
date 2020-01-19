@@ -16,6 +16,13 @@ void GenericPotential::plot_2d(
         throw std::invalid_argument("Can only get potential grid for 2 field potentials");
     }
 
+    Eigen::MatrixXd profiles = path.get_profiles();
+
+    std::vector<point_marker> path_points;
+    for (int i = 0; i < profiles.rows(); ++i) {
+        path_points.push_back(std::make_tuple(profiles(i,0), profiles(i,1)));
+    }
+
     std::vector<data_row> grid = get_2d_potential_grid(axis_size, x_min, x_max, y_min, y_max);
 
     Gnuplot gp("tee /tmp/plot.gp | gnuplot -persist");
@@ -45,19 +52,10 @@ void GenericPotential::plot_2d(
         << "," << std::get<1>(point_marks[i]) << " point pointtype 2 ps 5 front\n";
     }
 
-    gp << "plot '-' u 1:2:3 w image not, '/tmp/contour.txt' u 1:2 w l not\n";
-    gp << "plot '/tmp/contour.txt' u 1:2 w l not\n";
+    // gp << "plot '-' u 1:2:3 w image not, '/tmp/contour.txt' u 1:2 w l not\n";
+    gp << "plot '-' u 1:2:3 w image not, '-' u 1:2 w l lc rgb 'green' lw 2 not, '/tmp/contour.txt' u 1:2 w l lc rgb 'red' not\n";
     gp.send1d(grid);
-
-    // Eigen::MatrixXd profiles = path.get_profiles();
-
-    // std::vector<point_marker> path_points;
-    // for (int i = 0; i < profiles.rows(); ++i) {
-    //     path_points.push_back(std::make_tuple(profiles(i,0), profiles(i,1)));
-    // }
-
-    // gp << "plot '-' with linespoints linestyle 1\n";
-    // gp.send1d(path_points);
+    gp.send1d(path_points);    
 }
 
 void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
