@@ -139,7 +139,6 @@ public:
             profiler.set_convergence_tester(convergence_tester);
 
             Dummy_observer observer;
-            // Plotting_observer observer;
             profiler.calculate_bubble_profile(bp_potential, observer);
 
             Field_profiles profiles = profiler.get_bubble_profile();

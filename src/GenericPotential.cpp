@@ -145,6 +145,7 @@ double GenericPotential::normalise(GenericPotential& potential,
     // the true vacuum, and scale so that phi_t = (1,0,...,0)
     double field_scaling = (false_vacuum - true_vacuum).norm();
     Eigen::MatrixXd cob_matrix = calculate_rotation_to_target(shifted_true_vacuum).transpose();
+
     potential.apply_basis_change(field_scaling*cob_matrix);
 
     // Offset potential so that v(phi_f) = 0

@@ -31,9 +31,12 @@ void run_test_normalised(std::vector<TestPoint> tests, Simple2DModel model, std:
         Eigen::VectorXd true_vac = Eigen::VectorXd::Zero(2);
         true_vac(0) = 1.;
 
+        bool success = false;
+    
         try {
             std::cout << "T = " << test.T;
             BouncePath path = solver->solve(true_vac, false_vac, potential);
+            success = true;
             std::cout << ", action = " << path.get_action() << ", ";
             std::cout << " rescaled = " << path.get_action()*rescale << std::endl;
 
@@ -50,6 +53,8 @@ void run_test_normalised(std::vector<TestPoint> tests, Simple2DModel model, std:
         catch (const std::exception& e) {
             std::cout << " failed: " << e.what() << std::endl;
         }
+
+
     }
 }
 
