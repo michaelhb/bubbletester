@@ -85,7 +85,7 @@ public:
    // V(phi_f) = 0, phi_f = 0, and |phi_f - phi_t| = 1.
    // Returns a multiplier which can be used to recover the 
    // original action. 
-   static double normalise(GenericPotential& potential, 
+   static double normalise(GenericPotential& potential, int n_spatial_dimensions,
       Eigen::VectorXd true_vacuum, Eigen::VectorXd false_vacuum);
 
    Eigen::VectorXd minimise(const Eigen::VectorXd& start, 

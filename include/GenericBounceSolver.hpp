@@ -15,11 +15,7 @@ public:
         const Eigen::VectorXd& false_vacuum,
         const GenericPotential& potential) const = 0;
 
-    BouncePath solve_normalized(const Eigen::VectorXd& true_vacuum,
-        const Eigen::VectorXd& false_vacuum,
-        const GenericPotential& potential) {
-            
-        }
+    virtual int get_n_spatial_dimensions() const = 0;
 
     virtual void set_verbose(bool verbose) = 0;
 

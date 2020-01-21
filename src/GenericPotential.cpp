@@ -5,6 +5,9 @@
 #include "GenericPotential.hpp"
 #include "Rotation.hpp"
 
+// FOR TESTING
+#include <Eigen/LU>
+
 namespace BubbleTester {
 
 //! Utility method for plotting 2d potentials.
@@ -127,6 +130,7 @@ std::vector<std::tuple<double, double, double>> GenericPotential::get_2d_potenti
 }
 
 double GenericPotential::normalise(GenericPotential& potential, 
+      int n_spatial_dimensions, 
       Eigen::VectorXd true_vacuum, Eigen::VectorXd false_vacuum) {
     
     Eigen::VectorXd origin = Eigen::VectorXd::Zero(potential.get_number_of_fields());
@@ -145,6 +149,8 @@ double GenericPotential::normalise(GenericPotential& potential,
     // the true vacuum, and scale so that phi_t = (1,0,...,0)
     double field_scaling = (false_vacuum - true_vacuum).norm();
     Eigen::MatrixXd cob_matrix = calculate_rotation_to_target(shifted_true_vacuum).transpose();
+    
+    std::cout << "normalisation COB matrix det = " << cob_matrix.determinant() << std::endl;
 
     potential.apply_basis_change(field_scaling*cob_matrix);
 
@@ -156,7 +162,8 @@ double GenericPotential::normalise(GenericPotential& potential,
     potential.scale_potential(potential_scaling);
 
     // Return the action rescaling factor
-    return 1.0 / (potential_scaling*std::pow(field_scaling, 2));
+    return std::pow(field_scaling, n_spatial_dimensions) *
+           std::pow(potential_scaling, n_spatial_dimensions/2 - 1);
 }
 
 double nlopt_wrapper(const std::vector<double> &x, std::vector<double> &grad, void* f_data) {

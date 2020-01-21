@@ -12,6 +12,8 @@
 
 #define vacua(x1, x2) (Eigen::VectorXd(2) << x1, x2).finished()
 
+int n_spatial_dimensions = 3;
+
 namespace BubbleTester {
 
 struct TestPoint {
@@ -21,68 +23,112 @@ struct TestPoint {
     double CTAction; // CosmoTransitions result
 };
 
-void run_test_normalised(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver, bool plot) {
-    for (auto& test : tests) {
-        FiniteTempPotential potential = FiniteTempPotential(model, test.T);
-        double rescale = GenericPotential::normalise(potential, test.low_vevs, test.high_vevs);
-        std::cout << "rescale factor: " << rescale << std::endl;
-        
-        Eigen::VectorXd false_vac = Eigen::VectorXd::Zero(2);
-        Eigen::VectorXd true_vac = Eigen::VectorXd::Zero(2);
-        true_vac(0) = 1.;
+void run_test(std::vector<TestPoint> tests, Simple2DModel model, 
+    std::shared_ptr<GenericBounceSolver> solver, bool normalise, bool plot=false) {
 
-        bool success = false;
+    Eigen::VectorXd origin = Eigen::VectorXd::Zero(2);
+    double rescale = 1.0;
     
-        try {
-            std::cout << "T = " << test.T;
-            BouncePath path = solver->solve(true_vac, false_vac, potential);
-            success = true;
-            std::cout << ", action = " << path.get_action() << ", ";
-            std::cout << " rescaled = " << path.get_action()*rescale << std::endl;
-
-            if (plot) {
-                unsigned int axis_size = 200;
-
-                std::ostringstream title;
-                title << "T = ";
-                title << test.T;
-
-                potential.plot_2d(title.str(), axis_size, true_vac, false_vac, 0.5, path);
-            }
-        }
-        catch (const std::exception& e) {
-            std::cout << " failed: " << e.what() << std::endl;
-        }
-
-
-    }
-}
-
-void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver, bool plot) {
     for (auto& test : tests) {
         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
+
+        Eigen::VectorXd true_vacuum = test.low_vevs;
+        Eigen::VectorXd false_vacuum = test.high_vevs;
+
+        if (normalise) {
+            rescale = GenericPotential::normalise(potential, n_spatial_dimensions, test.low_vevs, test.high_vevs);
+            std::cout << "rescale factor: " << rescale << std::endl;
+            true_vacuum = (Eigen::VectorXd(2) << 1., 0.).finished();
+            false_vacuum = origin;
+        }
+        
+        // Solve the bounce
+        BouncePath path;
+        bool success = false;
+
+        try {
+            std::cout << "T = " << test.T << std::endl;
+            path = solver->solve(true_vacuum, false_vacuum, potential);
+            success = true;
+            std::cout << "action = " << path.get_action() << std::endl;
+            std::cout << "rescaled = " << path.get_action()*rescale << std::endl;
+        }
+        catch (...) {
+            std::cout << "failed" << std::endl;
+        }
 
         if (plot) {
-            double margin = 50.;
-            unsigned int axis_size = 200;
-
+            std::cout << "Plotting result..." << std::endl;
             std::ostringstream title;
-            title << "T = ";
-            title << test.T;
+            
+            double margin;
 
-            potential.plot_2d(title.str(), axis_size, test.low_vevs, test.high_vevs, margin);
-        }
+            if (normalise) {
+                margin = 0.5;
+            }
+            else {
+                margin = (test.low_vevs - test.high_vevs).norm() / 10;
+            }
+            
+            if (success) {
+                title << "T = ";
+                title << test.T;
+                potential.plot_2d(title.str(), 200, true_vacuum, origin, margin, path);
+            }
+            else {
+                title << "T = ";
+                title << test.T;
+                potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.5);
+            }
+        }    
+        // try {
+        //     std::cout << "T = " << test.T;
+        //     BouncePath path = solver->solve(true_vacuum, origin, potential);
+        //     success = true;
+        //     std::cout << ", action = " << path.get_action() << ", ";
+        //     std::cout << " rescaled = " << path.get_action()*rescale << std::endl;
 
-        try {
-            std::cout << "T = " << test.T;
-            BouncePath path = solver->solve(test.low_vevs, test.high_vevs, potential);
-            std::cout << ", action = " << path.get_action() << std::endl;
-        }
-        catch (const std::exception& e) {
-            std::cout << " failed: " << e.what() << std::endl;
-        }
+        //     if (plot) {
+        //         unsigned int axis_size = 200;
+
+        //         std::ostringstream title;
+        //         title << "T = ";
+        //         title << test.T;
+
+        //         potential.plot_2d(title.str(), axis_size, true_vac, false_vac, 0.5, path);
+        //     }
+        // }
+        // catch (const std::exception& e) {
+        //     std::cout << " failed: " << e.what() << std::endl;
+        // }
     }
 }
+
+// void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver, bool plot) {
+//     for (auto& test : tests) {
+//         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
+
+//         if (plot) {
+//             double margin = 50.;
+//             unsigned int axis_size = 200;
+
+//             std::ostringstream title;
+//             title << "T = ";
+//             title << test.T;
+
+//             potential.plot_2d(title.str(), axis_size, test.low_vevs, test.high_vevs, margin);
+//         }
+
+//         try {
+//             std::cout << "T = " << test.T;
+//             BouncePath path = solver->solve(test.low_vevs, test.high_vevs, potential);
+//             std::cout << ", action = " << path.get_action() << std::endl;
+//         }
+//         catch (const std::exception& e) {
+//             std::cout << " failed: " << e.what() << std::endl;
+//         }
+//     }
+// }
 
 };
 
@@ -134,15 +180,15 @@ int main() {
     Simple2DModel model = Simple2DModel(m1, m2, mu, Y1, Y2, n, renorm_scale);
 
     std::cout << "Testing BubbleProfiler V1:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
-    // bp_solver->set_verbose(true);
-    // run_test(tests, model, bp_solver, true);
-    run_test_normalised(tests, model, bp_solver, true);
+    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(n_spatial_dimensions);
+    bp_solver->set_verbose(true);
+    run_test(tests, model, bp_solver, true, true);
+    
 
     // std::cout << "Testing SimpleBounce:" << std::endl;
-    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(10., 100.);
+    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(10., 100., n_spatial_dimensions);
     // sb_solver->set_verbose(true);
     // // run_test(tests, model, sb_solver, true);
-    // run_test_normalised(tests, model, sb_solver, false);
+    // run_test_normalised(tests, model, sb_solver, true);
 }
 

@@ -48,7 +48,8 @@ private:
 class SimpleBounceSolver : public GenericBounceSolver {
 public:
 
-    SimpleBounceSolver(double rmax_, int grid_) {
+    SimpleBounceSolver(double rmax_, int grid_, int n_spatial_dimensions_) {
+        n_spatial_dimensions = n_spatial_dimensions_;
         rmax = rmax_;
         grid = grid_;
     }
@@ -62,7 +63,7 @@ public:
 
             simplebounce::BounceCalculator bounce;
             bounce.setRmax(rmax);
-            bounce.setDimension(3);
+            bounce.setDimension(n_spatial_dimensions);
             bounce.setN(grid);
             bounce.setNphi(n_fields);
             if (verbose) bounce.verboseOn();
@@ -97,6 +98,10 @@ public:
             return BouncePath(radii, fields, action);
         }
     
+    int get_n_spatial_dimensions() const override {
+        return n_spatial_dimensions;
+    }
+
     void set_verbose(bool verbose_) override {
         verbose = verbose_;
     }
@@ -110,6 +115,7 @@ private:
     bool verbose = false;
     double rmax;
     int grid;
+    int n_spatial_dimensions;
     
 };
 

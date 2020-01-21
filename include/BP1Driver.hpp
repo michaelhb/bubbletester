@@ -96,6 +96,9 @@ void BubbleProfilerPotential::add_constant_term(double constant) {
 
 class BP1BounceSolver : public GenericBounceSolver {
 public:
+    BP1BounceSolver(int n_spatial_dimensions_) : n_spatial_dimensions(n_spatial_dimensions_) {
+    }
+
     BouncePath solve(
         const Eigen::VectorXd& true_vacuum,
         const Eigen::VectorXd& false_vacuum,
@@ -125,6 +128,7 @@ public:
                 initial_step_size, interpolation_fraction);
 
             RK4_perturbative_profiler profiler;
+            profiler.set_number_of_dimensions(n_spatial_dimensions);
             profiler.set_domain_start(ansatz.get_domain_start());
             profiler.set_domain_end(ansatz.get_domain_end());
             profiler.set_initial_step_size(initial_step_size);
@@ -159,9 +163,15 @@ public:
             }
         }
 
+        int get_n_spatial_dimensions() const override {
+            return n_spatial_dimensions;
+        }
+
         std::string name() override {
             return "BPV1";
         }
+private:
+    int n_spatial_dimensions;
 };
 
 };

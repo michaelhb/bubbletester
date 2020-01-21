@@ -8,6 +8,8 @@
 #include "SimpleBounceDriver.hpp"
 #include "BouncePath.hpp"
 
+int n_spatial_dimensions = 3;
+
 namespace BubbleTester { 
 
 void thin_wall_test(std::shared_ptr<GenericBounceSolver> solver) {
@@ -61,11 +63,11 @@ int main() {
     using namespace BubbleTester;
 
     std::cout << "Testing BubbleProfiler V1:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>();
+    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(n_spatial_dimensions);
     thin_wall_test(bp_solver);
 
     std::cout << "Testing SimpleBounce:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100.);
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., n_spatial_dimensions);
     thin_wall_test(sb_solver);
 }
 
