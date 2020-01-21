@@ -81,54 +81,8 @@ void run_test(std::vector<TestPoint> tests, Simple2DModel model,
                 potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.5);
             }
         }    
-        // try {
-        //     std::cout << "T = " << test.T;
-        //     BouncePath path = solver->solve(true_vacuum, origin, potential);
-        //     success = true;
-        //     std::cout << ", action = " << path.get_action() << ", ";
-        //     std::cout << " rescaled = " << path.get_action()*rescale << std::endl;
-
-        //     if (plot) {
-        //         unsigned int axis_size = 200;
-
-        //         std::ostringstream title;
-        //         title << "T = ";
-        //         title << test.T;
-
-        //         potential.plot_2d(title.str(), axis_size, true_vac, false_vac, 0.5, path);
-        //     }
-        // }
-        // catch (const std::exception& e) {
-        //     std::cout << " failed: " << e.what() << std::endl;
-        // }
     }
 }
-
-// void run_test(std::vector<TestPoint> tests, Simple2DModel model, std::shared_ptr<GenericBounceSolver> solver, bool plot) {
-//     for (auto& test : tests) {
-//         FiniteTempPotential potential = FiniteTempPotential(model, test.T);
-
-//         if (plot) {
-//             double margin = 50.;
-//             unsigned int axis_size = 200;
-
-//             std::ostringstream title;
-//             title << "T = ";
-//             title << test.T;
-
-//             potential.plot_2d(title.str(), axis_size, test.low_vevs, test.high_vevs, margin);
-//         }
-
-//         try {
-//             std::cout << "T = " << test.T;
-//             BouncePath path = solver->solve(test.low_vevs, test.high_vevs, potential);
-//             std::cout << ", action = " << path.get_action() << std::endl;
-//         }
-//         catch (const std::exception& e) {
-//             std::cout << " failed: " << e.what() << std::endl;
-//         }
-//     }
-// }
 
 };
 
