@@ -137,7 +137,6 @@ int main() {
     std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(n_spatial_dimensions);
     bp_solver->set_verbose(true);
     run_test(tests, model, bp_solver, true, true);
-    
 
     // std::cout << "Testing SimpleBounce:" << std::endl;
     // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(10., 100., n_spatial_dimensions);
