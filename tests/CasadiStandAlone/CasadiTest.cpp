@@ -32,6 +32,28 @@ Function get_potential(double delta) {
     return Function("fV", {phi}, {V}, {"phi"}, {"V(phi)"});
 }
 
+// Same thing, but as a black box Callback function
+class PotentialCallback : public Callback {
+public:
+    PotentialCallback(double delta_) : delta(delta_) {
+        Dict opts;
+        opts["enable_fd"] = true;
+        construct("cV", opts);
+    }
+
+    casadi_int get_n_in() override { return 2; }
+    casadi_int get_n_out() override { return 1; }
+
+    std::vector<DM> eval(const std::vector<DM>& arg) const override {
+        std::cout << arg << std::endl;
+        DM phi_1 = arg.at(0);
+        DM phi_2 = arg.at(1);
+        return {(sqr(phi_1) + sqr(phi_2))*(1.8*sqr(phi_1 - 1) + 0.2*sqr(phi_2 - 1) - delta)};
+    }
+private:
+    double delta;
+};
+
 DM find_false_vac(Function V, int n_phi) {
     SX phi = SX::sym("phi", n_phi);
     
@@ -274,8 +296,15 @@ int main() {
 
     Function potential = get_potential(0.4);
 
-    DM false_vac = find_false_vac(potential, 2);
-    DM true_vac = DM::vertcat({0., 0.});
+    // DM false_vac = find_false_vac(potential, 2);
+    // DM true_vac = DM::vertcat({0., 0.});
 
-    solve(potential, false_vac, true_vac);
+    // solve(potential, false_vac, true_vac);
+
+    PotentialCallback cb_potential(0.4);
+    Function fV = cb_potential;
+    std::cout << fV << std::endl;
+    DM arg = DM::vertcat({1., 1.});
+    // std::cout << fV(arg) << std::endl;
+    std::cout << potential(arg) << std::endl;
 }
