@@ -22,22 +22,22 @@ void append_d(std::vector<double> &to, std::vector<double> from) {
     to.insert(to.end(), from.begin(), from.end());
 }
 
-Ca_Potential get_potential(double delta) {
+// Our test potential, using CasADi primitives
+Function get_potential(double delta) {
     SX phi_1 = SX::sym("phi_1");
     SX phi_2 = SX::sym("phi_2");
 
     SX phi = SX::vertcat(SXVector({phi_1, phi_2}));
     SX V = (sqr(phi_1) + sqr(phi_2))*(1.8*sqr(phi_1 - 1) + 0.2*sqr(phi_2 - 1) - delta);
-    return std::make_tuple(V, phi);
+    return Function("fV", {phi}, {V}, {"phi"}, {"V(phi)"});
 }
 
-DM find_false_vac(std::tuple<SX, SX> potential) {
-    SX V = std::get<0>(potential);
-    SX phi = std::get<1>(potential);
+DM find_false_vac(Function V, int n_phi) {
+    SX phi = SX::sym("phi", n_phi);
+    
+    SX sV = V(phi)[0];
 
-    std::cout << V << std::endl;
-
-    SXDict nlp = {{"x", phi}, {"f", V}};
+    SXDict nlp = {{"x", phi}, {"f", sV}};
     Function solver = nlpsol("solver", "ipopt", nlp);
     
     std::vector<double> ub = {2., 2.};
@@ -56,14 +56,12 @@ DM find_false_vac(std::tuple<SX, SX> potential) {
     }
 }
 
-void solve(Ca_Potential ca_potential, DM false_vac, DM true_vac) {
-    SX potential = std::get<0>(ca_potential);
-    SX phi = std::get<1>(ca_potential);
-    int n_phi = phi.size1();
-
-    // Wrap potential as callable function & get value @ true vacuum
-    Function fV = Function("fV", {phi}, {potential}, {"phi"}, {"V(phi)"});
-    DM v_true = fV(false_vac);
+void solve(Function potential, DM false_vac, DM true_vac) {\
+    int n_phi = false_vac.size1();
+    SX phi = SX::sym("phi", n_phi);
+    
+    // Value of potential at false 
+    DM v_true = potential(false_vac);
 
     // Time horizon
     double T = 1.;
@@ -128,9 +126,9 @@ void solve(Ca_Potential ca_potential, DM false_vac, DM true_vac) {
 
     // Define the integrand in the objective function
     Function L = Function("L", 
-        {phi, u}, {sqrt(2*SX::minus(fV(phi)[0], v_true))*norm_2(u)},
+        {phi, u}, {sqrt(2*SX::minus(potential(phi)[0], v_true))*norm_2(u)},
         {"phi", "u"}, {"L(phi, u)"});
-
+    
     // Dynamics function (trivial here, just u = phidot)
     Function f = Function("f", {phi, u}, {u}, {"phi", "u"}, {"phidot"});
 
@@ -260,6 +258,13 @@ void solve(Ca_Potential ca_potential, DM false_vac, DM true_vac) {
     DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
 
     DMDict res = solver(arg);
+
+    MX endpoints_plot = MX::horzcat(endpoints);
+    MX controls_plot =  MX::horzcat(controls);
+
+    Function trajectories = Function("trajectories", {W}, {endpoints_plot, controls_plot});
+    std::cout << trajectories(res["x"]) << std::endl;
+    std::cout << endpoints_plot << std::endl;
 }
 
 };
@@ -267,16 +272,10 @@ void solve(Ca_Potential ca_potential, DM false_vac, DM true_vac) {
 int main() {
     using namespace casadi;
 
-    Ca_Potential potential = get_potential(0.4);
-    DM false_vac = find_false_vac(potential);
-    DM true_vac = DM::vertcat({0., 0.});
-    
-    solve(potential, false_vac, true_vac);
+    Function potential = get_potential(0.4);
 
-    // Function v = get_potential(0.4);
-    // std::cout << v << std::endl;
-    // DM in = DM::vertcat({1., 1.});
-    // std::cout << in << std::endl;
-    // DMVector out = v(in);
-    // std::cout << out << std::endl;
+    DM false_vac = find_false_vac(potential, 2);
+    DM true_vac = DM::vertcat({0., 0.});
+
+    solve(potential, false_vac, true_vac);
 }
