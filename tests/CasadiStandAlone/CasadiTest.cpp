@@ -53,17 +53,17 @@ public:
         DM phi_2 = arg.at(0).get_elements()[1];
         return {(sqr(phi_1) + sqr(phi_2))*(1.8*sqr(phi_1 - 1) + 0.2*sqr(phi_2 - 1) - delta)};
     }
-    
+
 private:
     double delta;
 };
 
 DM find_false_vac(Function V, int n_phi) {
-    SX phi = SX::sym("phi", n_phi);
+    MX phi = MX::sym("phi", n_phi);
     
-    SX sV = V(phi)[0];
+    MX sV = V(phi)[0];
 
-    SXDict nlp = {{"x", phi}, {"f", sV}};
+    MXDict nlp = {{"x", phi}, {"f", sV}};
     Function solver = nlpsol("solver", "ipopt", nlp);
     
     std::vector<double> ub = {2., 2.};
@@ -297,21 +297,12 @@ void solve(Function potential, DM false_vac, DM true_vac) {\
 
 int main() {
     using namespace casadi;
-    // DM false_vac = find_false_vac(potential, 2);
-    // DM true_vac = DM::vertcat({0., 0.});
-
-    // solve(potential, false_vac, true_vac);
-
     Function potential = get_potential(0.4);
     PotentialCallback cb_potential(0.4);
-    
-    DM arg = DM::vertcat({1., 1.});
-    
-    DMVector arg2 = {9., 6.};
-    
-    std::cout << "SX ret: " << potential(arg) << std::endl;
 
-    DMVector cb_ret = cb_potential(arg);
-    std::cout << "callback ret: " << cb_ret << std::endl;
+    DM false_vac = find_false_vac(potential, 2);
+    DM true_vac = DM::vertcat({0., 0.});
 
+
+    solve(potential, false_vac, true_vac);   
 }
