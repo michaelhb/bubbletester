@@ -84,7 +84,7 @@ DM find_false_vac(Function V, int n_phi) {
 
 void solve(Function potential, DM false_vac, DM true_vac) {\
     int n_phi = false_vac.size1();
-    SX phi = SX::sym("phi", n_phi);
+    MX phi = MX::sym("phi", n_phi);
     
     // Value of potential at false 
     DM v_true = potential(false_vac);
@@ -148,11 +148,11 @@ void solve(Function potential, DM false_vac, DM true_vac) {\
     }
     
     // Control variables (in this case, corresponding to phi_dot)
-    SX u = SX::sym("u", n_phi);
+    MX u = MX::sym("u", n_phi);
 
     // Define the integrand in the objective function
     Function L = Function("L", 
-        {phi, u}, {sqrt(2*SX::minus(potential(phi)[0], v_true))*norm_2(u)},
+        {phi, u}, {sqrt(2*MX::minus(potential(phi)[0], v_true))*norm_2(u)},
         {"phi", "u"}, {"L(phi, u)"});
     
     // Dynamics function (trivial here, just u = phidot)
@@ -304,5 +304,5 @@ int main() {
     DM true_vac = DM::vertcat({0., 0.});
 
 
-    solve(potential, false_vac, true_vac);   
+    solve(cb_potential, false_vac, true_vac);   
 }
