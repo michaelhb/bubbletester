@@ -88,6 +88,7 @@ public:
    static double normalise(GenericPotential& potential, int n_spatial_dimensions,
       Eigen::VectorXd true_vacuum, Eigen::VectorXd false_vacuum);
 
+   //! Utility function for locating vacua
    Eigen::VectorXd minimise(const Eigen::VectorXd& start, 
       const Eigen::VectorXd& lower_bounds, const Eigen::VectorXd& upper_bounds);
 
