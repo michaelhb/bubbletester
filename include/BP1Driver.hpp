@@ -90,8 +90,6 @@ void BubbleProfilerPotential::add_constant_term(double constant) {
     constant_term += constant;
 }
 
-
-
 //////// Wrapper class for the BP1 perturbative profiler 
 
 class BP1BounceSolver : public GenericBounceSolver {

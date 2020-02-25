@@ -1,6 +1,7 @@
 #include <casadi/casadi.hpp>
 #include <Eigen/Core>
 #include "CasadiPotential.hpp"
+#include "CasadiMaupertuisDriver.hpp"
 
 #define sqr(x) (x)*(x)
 
@@ -31,6 +32,9 @@ int main() {
     start << 1., 1.;
     
     Eigen::VectorXd true_vacuum = potential.minimise(start, lb, ub);
-    std::cout << "True vacuum: " << true_vacuum << std::endl;
+    std::cout << "True vacuum:" << std::endl << true_vacuum << std::endl;
 
+    // Find the thin wall limit solution
+    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<CasadiMaupertuisSolver>(2);
+    bp_solver->solve(true_vacuum, origin, potential);
 }
