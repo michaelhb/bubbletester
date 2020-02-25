@@ -5,13 +5,12 @@
 #include "GenericPotential.hpp"
 
 namespace BubbleTester {
-using namespace casadi;
 
 class CasadiPotential : public GenericPotential {
     
 public:
     CasadiPotential(casadi::Function fV_, int n_fields_) : fV(fV_), n_fields(n_fields_) {
-        
+        using namespace casadi;
         MX phi = MX::sym("phi", n_fields);
         MX grad = gradient(MX::vertcat(fV(phi)), phi);
         MX hess = MX::hessian(MX::vertcat(fV(phi)), phi);
@@ -23,6 +22,7 @@ public:
     }
 
     virtual double operator()(const Eigen::VectorXd& coords) const override {
+        using namespace casadi;
         Eigen::VectorXd coords_tr = transform_coords(coords);
 
         DM coords_in = std::vector<double>(
@@ -32,6 +32,7 @@ public:
     }
 
     virtual double partial(const Eigen::VectorXd& coords, int i) const override {
+        using namespace casadi;
         Eigen::VectorXd coords_tr = transform_coords(coords);
 
         if (!grad_cache_bad && grad_cache_l == coords_tr) {
@@ -50,6 +51,7 @@ public:
 
 
     virtual double partial(const Eigen::VectorXd& coords, int i, int j) const override {
+        using namespace casadi;
         Eigen::VectorXd coords_tr = transform_coords(coords);
 
         if (!hess_cache_bad && hess_cache_l == coords_tr) {
@@ -81,18 +83,18 @@ private:
     // prevent redundant finite difference calculations
     mutable bool grad_cache_bad = true; 
     mutable Eigen::VectorXd grad_cache_l{};
-    mutable DM grad_cache_r{};
+    mutable casadi::DM grad_cache_r{};
     mutable bool hess_cache_bad = true;
     mutable Eigen::VectorXd hess_cache_l{};
-    mutable DM hess_cache_r{};
+    mutable casadi::DM hess_cache_r{};
 
-    DMVector eigen_to_dmvec(Eigen::VectorXd vec) const {
-    DMVector dmVec;
-    for (int i = 0; i < vec.size(); ++i) {
-        dmVec.push_back(vec(i));
+    casadi::DMVector eigen_to_dmvec(Eigen::VectorXd vec) const {
+        casadi::DMVector dmVec;
+        for (int i = 0; i < vec.size(); ++i) {
+            dmVec.push_back(vec(i));
+        }
+        return dmVec;
     }
-    return dmVec;
-}
 };
 
 }
