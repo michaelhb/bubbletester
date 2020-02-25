@@ -82,7 +82,10 @@ DM find_false_vac(Function V, int n_phi) {
     }
 }
 
-void solve(Function potential, DM false_vac, DM true_vac) {\
+void solve(Function potential, DM false_vac, DM true_vac) {
+    std::cout << "FALSE VAC: " << false_vac << std::endl;
+    std::cout << "TRUE VAC: " << true_vac << std::endl;
+    
     int n_phi = false_vac.size1();
     MX phi = MX::sym("phi", n_phi);
     
