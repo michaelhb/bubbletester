@@ -1,5 +1,6 @@
 #include <casadi/casadi.hpp>
 #include <Eigen/Core>
+#include "BouncePath.hpp"
 #include "CasadiPotential.hpp"
 #include "CasadiMaupertuisDriver.hpp"
 
@@ -36,5 +37,8 @@ int main() {
 
     // Find the thin wall limit solution
     std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<CasadiMaupertuisSolver>(2);
-    bp_solver->solve(true_vacuum, origin, potential);
+    BouncePath path = bp_solver->solve(true_vacuum, origin, potential);
+
+    potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.5, path);
+
 }
