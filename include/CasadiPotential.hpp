@@ -68,19 +68,16 @@ public:
     virtual double operator()(const Eigen::VectorXd& coords) const override {
         using namespace casadi;
         Eigen::VectorXd coords_tr = transform_coords(coords);
-
-        DM coords_in = std::vector<double>(
-            coords_tr.data(), coords_tr.data() + coords_tr.cols()*coords_tr.rows());
-        
-        return transform_v(fV(coords_in)[0].get_elements()[0], true);
+        DM coords_dm = eigen_to_dm(coords_tr);
+        DM res = fV(coords_dm)[0];
+        return transform_v((double) res, true);
     }
 
     virtual double partial(const Eigen::VectorXd& coords, int i) const override {
         using namespace casadi;
         Eigen::VectorXd coords_tr = transform_coords(coords);
-
         if (!grad_cache_bad && grad_cache_l == coords_tr) {
-            return transform_v((double) grad_cache_r(i));
+            return transform_v((double) grad_cache_r(i), false);
         }
         else {
             grad_cache_bad = false;
@@ -89,7 +86,7 @@ public:
             DM grad = fGrad(coords_dm)[0];
             grad_cache_r = grad;
 
-            return transform_v((double) grad_cache_r(i));
+            return transform_v((double) grad_cache_r(i), false);
         }
     };
 
@@ -99,7 +96,7 @@ public:
         Eigen::VectorXd coords_tr = transform_coords(coords);
 
         if (!hess_cache_bad && hess_cache_l == coords_tr) {
-            return transform_v((double) hess_cache_r(i, j));
+            return transform_v((double) hess_cache_r(i, j), false);
         }
         else {
             hess_cache_bad = false;
@@ -107,7 +104,7 @@ public:
             DM coords_dm = eigen_to_dm(coords_tr);
             DM hess = fHess(coords_dm)[0];
             hess_cache_r = hess; 
-            return transform_v((double) hess_cache_r(i, j));
+            return transform_v((double) hess_cache_r(i, j), false);
         }
     }
     

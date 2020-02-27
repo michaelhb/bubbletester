@@ -37,20 +37,6 @@ void run_test(std::shared_ptr<GenericBounceSolver> solver, double delta, bool no
         std::cout << "Normalised potential, rescale factor = " << rescale << std::endl;
     }
 
-    // TEMP
-    Eigen::VectorXd test1(2);
-    Eigen::VectorXd test2(2);
-    Eigen::VectorXd test3(2);
-    Eigen::VectorXd test4(2);
-    test1 << 0., 0.;
-    test2 << 1., 1.;
-    test3 << 2., 2.;
-    test4 << 3., 3.;
-    std::cout << "TEST1: " << potential(test1) << std::endl;
-    std::cout << "TEST2: " << potential(test2) << std::endl;
-    std::cout << "TEST3: " << potential(test3) << std::endl;
-    std::cout << "TEST4: " << potential(test4) << std::endl;
-
     // Solve the bounce
     std::cout << "Testing " << solver->name() << ": ";
     BouncePath path;
