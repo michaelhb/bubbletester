@@ -11,6 +11,7 @@
 // For 2D plots
 typedef std::tuple<double, double, double> data_row; 
 typedef std::tuple<double, double> point_marker;
+typedef std::vector<BubbleTester::BouncePath> plot_paths;
 
 namespace BubbleTester {
 
@@ -75,11 +76,11 @@ public:
    void plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, 
       double y_min, double y_max,
       std::vector<point_marker> point_marks = std::vector<point_marker>(),
-      BouncePath path = BouncePath());
+      plot_paths paths = plot_paths());
 
    //! Contour plot with auto plot box around vacua (2 field potentials only)
    void plot_2d(std::string title, unsigned int axis_size, Eigen::VectorXd true_vac, 
-      Eigen::VectorXd false_vac, double margin, BouncePath path = BouncePath());
+      Eigen::VectorXd false_vac, double margin, plot_paths paths = plot_paths());
 
    //! Normalise the potential so that v(phi_f) - v(phi_t) = 1,
    // V(phi_f) = 0, phi_f = 0, and |phi_f - phi_t| = 1.

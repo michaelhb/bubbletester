@@ -58,7 +58,7 @@ void run_test(std::shared_ptr<GenericBounceSolver> solver, double delta, bool no
         
         if (success) {
             title << "Delta = " << delta;
-            potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.5, path);
+            potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.5, {path});
         }
         else {
             title << "Delta = " << delta << " (no solution found)";

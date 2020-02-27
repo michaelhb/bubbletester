@@ -133,9 +133,9 @@ public:
 
         // Define the integrand in the objective function
         Function L = Function("L", 
-            {phi, u}, {sqrt(2*MX::minus(potential(phi)[0], v_true))*norm_2(u)},
+            {phi, u}, {sqrt(2*MX::abs(MX::minus(potential(phi)[0], v_true)))*norm_2(u)},
             {"phi", "u"}, {"L(phi, u)"});
-        
+
         // Dynamics function (trivial here, just u = phidot)
         Function f = Function("f", {phi, u}, {u}, {"phi", "u"}, {"phidot"});
 

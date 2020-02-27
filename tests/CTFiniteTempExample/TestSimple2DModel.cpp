@@ -73,7 +73,7 @@ void run_test(std::vector<TestPoint> tests, Simple2DModel model,
             if (success) {
                 title << "T = ";
                 title << test.T;
-                potential.plot_2d(title.str(), 200, true_vacuum, origin, margin, path);
+                potential.plot_2d(title.str(), 200, true_vacuum, origin, margin, {path});
             }
             else {
                 title << "T = ";
