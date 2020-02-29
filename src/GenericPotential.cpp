@@ -13,17 +13,10 @@ namespace BubbleTester {
 //! Utility method for plotting 2d potentials.
 void GenericPotential::plot_2d(
     std::string title, unsigned int axis_size, double x_min, double x_max, 
-    double y_min, double y_max, std::vector<point_marker> point_marks, BouncePath path) {
+    double y_min, double y_max, std::vector<point_marker> point_marks, plot_paths paths) {
 
     if (get_number_of_fields() != 2) {
         throw std::invalid_argument("Can only get potential grid for 2 field potentials");
-    }
-
-    Eigen::MatrixXd profiles = path.get_profiles();
-
-    std::vector<point_marker> path_points;
-    for (int i = 0; i < profiles.rows(); ++i) {
-        path_points.push_back(std::make_tuple(profiles(i,0), profiles(i,1)));
     }
 
     std::vector<data_row> grid = get_2d_potential_grid(axis_size, x_min, x_max, y_min, y_max);
@@ -55,14 +48,28 @@ void GenericPotential::plot_2d(
         << "," << std::get<1>(point_marks[i]) << " point pointtype 2 ps 5 front\n";
     }
 
-    // gp << "plot '-' u 1:2:3 w image not, '/tmp/contour.txt' u 1:2 w l not\n";
-    gp << "plot '-' u 1:2:3 w image not, '-' u 1:2 w l lc rgb 'green' lw 2 not, '/tmp/contour.txt' u 1:2 w l lc rgb 'red' not\n";
+    gp << "plot '-' u 1:2:3 w image not, '/tmp/contour.txt' u 1:2 w l lc rgb 'red' not";
+    
+    for (int j = 0; j < paths.size(); ++j) {
+        gp << ", '-' u 1:2 w l lw 2 not";
+    }
+    gp << "\n";
+
     gp.send1d(grid);
-    gp.send1d(path_points);    
+
+    for (auto& path : paths) {
+        Eigen::MatrixXd profiles = path.get_profiles();
+
+        std::vector<point_marker> path_points;
+        for (int i = 0; i < profiles.rows(); ++i) {
+            path_points.push_back(std::make_tuple(profiles(i,0), profiles(i,1)));
+        }
+        gp.send1d(path_points);
+    }
 }
 
 void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
-     Eigen::VectorXd true_vac, Eigen::VectorXd false_vac, double margin, BouncePath path) {
+     Eigen::VectorXd true_vac, Eigen::VectorXd false_vac, double margin, plot_paths paths) {
     double x_max = std::max(true_vac(0), false_vac(0)) + margin;
     double x_min = std::min(true_vac(0), false_vac(0)) - margin;
     double y_max = std::max(true_vac(1), false_vac(1)) + margin;
@@ -72,7 +79,7 @@ void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
     vacua_marks.push_back(std::make_tuple(true_vac(0), true_vac(1)));
     vacua_marks.push_back(std::make_tuple(false_vac(0), false_vac(1)));
 
-    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, vacua_marks, path);
+    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, vacua_marks, paths);
 
 }
 
