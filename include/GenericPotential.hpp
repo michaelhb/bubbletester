@@ -6,6 +6,7 @@
 #include <vector>
 #include <math.h>
 #include <nlopt.hpp>
+#include <memory>
 #include "BouncePath.hpp"
 
 // For 2D plots
@@ -24,7 +25,7 @@ public:
       origin_translation_gp = Eigen::VectorXd::Zero(n_fields);
       basis_transform_gp = Eigen::MatrixXd::Identity(n_fields, n_fields);
    }
-   
+
    //! Evaluate potential at point
    /*!
     * @param coords Coordinates at which to evaluate

@@ -5,9 +5,9 @@
 
 namespace BubbleTester {
 
-class Simple2DModel : public EffPotential::Abstract_input_model {
+class CTFiniteTempModel : public EffPotential::Abstract_input_model {
 public:
-    Simple2DModel(double m1_, double m2_, double mu_, double Y1_, double Y2_, int n_, double renorm_scale_) {
+    CTFiniteTempModel(double m1_, double m2_, double mu_, double Y1_, double Y2_, int n_, double renorm_scale_) {
         renorm_scale = renorm_scale_;
         m1 = m1_;
         m2 = m2_;

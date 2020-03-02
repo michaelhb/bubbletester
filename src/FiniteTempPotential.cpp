@@ -18,8 +18,8 @@ double FiniteTempPotential::partial(const Eigen::VectorXd& coords, int i) const 
     else {
         grad_cache_bad = false;
         grad_cache_l = internal_coords;
-        Eigen::VectorXd grad = 
-            const_cast<EffPotential::Effective_potential&>(potential).d2V_dxdt(internal_coords, T);
+                Eigen::VectorXd grad = 
+            const_cast<EffPotential::Effective_potential&>(potential).dV_dx(internal_coords, T);
         grad_cache_r = grad;
 
         return transform_v(grad_cache_r(i));

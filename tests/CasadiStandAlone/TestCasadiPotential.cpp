@@ -21,7 +21,7 @@ casadi::Function get_potential(double delta) {
 int main() {
     // using namespace casadi;
     using namespace BubbleTester;
-    casadi::Function fPotential = get_potential(0.4);
+    casadi::Function fPotential = get_potential(0.05);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
     Eigen::VectorXd origin = Eigen::VectorXd::Zero(2);

@@ -8,7 +8,8 @@
 #include "BP1Driver.hpp"
 #include "SimpleBounceDriver.hpp"
 #include "BouncePath.hpp"
-#include "Simple2DModel.hpp"
+#include "CTFiniteTempModel.hpp"
+#include "CasadiMaupertuisDriver.hpp"
 
 #define vacua(x1, x2) (Eigen::VectorXd(2) << x1, x2).finished()
 
@@ -23,7 +24,7 @@ struct TestPoint {
     double CTAction; // CosmoTransitions result
 };
 
-void run_test(std::vector<TestPoint> tests, Simple2DModel model, 
+void run_test(std::vector<TestPoint> tests, CTFiniteTempModel model, 
     std::shared_ptr<GenericBounceSolver> solver, bool normalise, bool plot=false) {
 
     Eigen::VectorXd origin = Eigen::VectorXd::Zero(2);
@@ -45,7 +46,7 @@ void run_test(std::vector<TestPoint> tests, Simple2DModel model,
         // Solve the bounce
         BouncePath path;
         bool success = false;
-
+        
         try {
             std::cout << "T = " << test.T << std::endl;
             path = solver->solve(true_vacuum, false_vacuum, potential);
@@ -131,17 +132,22 @@ int main() {
     int n = 30.;
     double renorm_scale = 246.;
 
-    Simple2DModel model = Simple2DModel(m1, m2, mu, Y1, Y2, n, renorm_scale);
+    CTFiniteTempModel model = CTFiniteTempModel(m1, m2, mu, Y1, Y2, n, renorm_scale);
 
-    std::cout << "Testing BubbleProfiler V1:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(n_spatial_dimensions);
-    bp_solver->set_verbose(true);
-    run_test(tests, model, bp_solver, true, true);
+    // std::cout << "Testing BubbleProfiler V1:" << std::endl;
+    // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(n_spatial_dimensions);
+    // bp_solver->set_verbose(true);
+    // run_test(tests, model, bp_solver, false, true);
 
     // std::cout << "Testing SimpleBounce:" << std::endl;
-    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(10., 100., n_spatial_dimensions);
+    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., n_spatial_dimensions);
     // sb_solver->set_verbose(true);
-    // // run_test(tests, model, sb_solver, true);
+    // run_test(tests, model, sb_solver, false);
     // run_test_normalised(tests, model, sb_solver, true);
+
+    std::cout << "Testing Maupertuis:" << std::endl;
+    std::shared_ptr<GenericBounceSolver> mp_solver = std::make_shared<CasadiMaupertuisSolver>(n_spatial_dimensions);
+    mp_solver->set_verbose(true);
+    run_test(tests, model, mp_solver, true, true);
 }
 

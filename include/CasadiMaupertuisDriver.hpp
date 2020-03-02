@@ -37,27 +37,47 @@ public:
         const GenericPotential& g_potential) const override {
         using namespace casadi;
 
-        Function potential;
+        bool is_casadi = false;
 
         // Hacky way of figuring out if it's a CasadiPotential 
         try {
             // Case 1: we are working with a CasadiPotential, 
             // so we want to use the Function instance. 
-            const CasadiPotential &c_potential = dynamic_cast<const CasadiPotential &>(g_potential); 
-            potential = c_potential.get_function(); 
+            const CasadiPotential &c_potential = dynamic_cast<const CasadiPotential &>(g_potential);
             std::cout << "CasadiMaupertuisSolver: this is a CasadiPotential" << std::endl;
-            std::cout << potential << std::endl;
+            Function potential = c_potential.get_function(); 
+            return _solve(true_vacuum, false_vacuum, potential);
         }
         catch (const std::bad_cast) {
             // Case 2: we are not working with a CasadiPotential,
             // so we want to wrap it in a Callback and use finite 
             // differences to calculate derivatives.
             std::cout << "CasadiMaupertuisSolver: this is not a CasadiPotential" << std::endl;
-            std::shared_ptr<const GenericPotential> p_potential 
-                = std::shared_ptr<const GenericPotential>(&g_potential);
-
-            potential = CasadiPotentialCallback(p_potential);
+            CasadiPotentialCallback cb(g_potential);
+            Function potential = cb;
+            return _solve(true_vacuum, false_vacuum, potential);
         }
+    }
+
+    int get_n_spatial_dimensions() const override {
+        return n_spatial_dimensions;
+    }
+
+    std::string name() override {
+        return "CasadiMaupertuis";
+    }
+
+    void set_verbose(bool verbose) override {
+        // Do nothing for now
+    }
+
+private:
+    int n_spatial_dimensions;
+
+    BouncePath _solve(const Eigen::VectorXd& true_vacuum, 
+                      const Eigen::VectorXd& false_vacuum,
+                      casadi::Function potential) const {
+        using namespace casadi;
 
         DM true_vac = eigen_to_dm(true_vacuum);
         DM false_vac = eigen_to_dm(false_vacuum);
@@ -67,7 +87,7 @@ public:
 
         int n_phi = false_vac.size1();
         MX phi = MX::sym("phi", n_phi);
-        
+
         // Value of potential at false 
         DM v_true = potential(true_vac);
 
@@ -285,21 +305,6 @@ public:
 
         return BouncePath(radii, profiles, action);
     }
-
-    int get_n_spatial_dimensions() const override {
-        return n_spatial_dimensions;
-    }
-
-    std::string name() override {
-        return "CasadiMaupertuis";
-    }
-
-    void set_verbose(bool verbose) override {
-        // Do nothing for now
-    }
-
-private:
-    int n_spatial_dimensions;
 };
 
 }

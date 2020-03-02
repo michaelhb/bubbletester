@@ -20,10 +20,11 @@ casadi::DM eigen_to_dm(Eigen::VectorXd vec) {
 // finite differences. 
 class CasadiPotentialCallback : public casadi::Callback {
 public:
-    CasadiPotentialCallback(std::shared_ptr<const GenericPotential> potential_) : 
+    CasadiPotentialCallback(const GenericPotential& potential_) : 
         potential(potential_) {
-            n_fields = potential->get_number_of_fields();
-            casadi::Dict opts;
+            using namespace casadi;
+            n_fields = potential.get_number_of_fields();
+            Dict opts;
             opts["enable_fd"] = true;
             construct("PotentialCallback", opts);
         }
@@ -31,7 +32,7 @@ public:
     casadi_int get_n_in() override { return 1; }
     casadi_int get_n_out() override { return 1; }
 
-    casadi::Sparsity get_sparsity_in(casadi_int i) {
+    casadi::Sparsity get_sparsity_in(casadi_int i) override {
         return casadi::Sparsity::dense(n_fields, 1);
     }
 
@@ -39,11 +40,11 @@ public:
         using namespace casadi;
         std::vector<double> vArg = arg.at(0).get_elements();
         Eigen::Map<Eigen::VectorXd> eArg(vArg.data(), vArg.size());
-        return {potential->operator()(eArg)};
+        return {potential(eArg)};
     }
 
 private:
-    std::shared_ptr<const GenericPotential> potential;
+    const GenericPotential& potential;
     int n_fields;
 };
 

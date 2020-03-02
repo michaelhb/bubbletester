@@ -301,11 +301,17 @@ void solve(Function potential, DM false_vac, DM true_vac) {
 int main() {
     using namespace casadi;
     Function potential = get_potential(0.4);
-    PotentialCallback cb_potential(0.4);
+    // Function cb_potential;
+    // cb_potential = PotentialCallback(0.4);
+    
+    // PotentialCallback cb_potential(0.4);
+    PotentialCallback pc(0.4);
+    Function cb_potential = pc;
+
+    
 
     DM false_vac = find_false_vac(potential, 2);
     DM true_vac = DM::vertcat({0., 0.});
 
-
-    solve(potential, false_vac, true_vac);   
+    solve(cb_potential, false_vac, true_vac);   
 }
