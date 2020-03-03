@@ -139,15 +139,15 @@ int main() {
     // bp_solver->set_verbose(true);
     // run_test(tests, model, bp_solver, false, true);
 
-    // std::cout << "Testing SimpleBounce:" << std::endl;
-    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., n_spatial_dimensions);
-    // sb_solver->set_verbose(true);
-    // run_test(tests, model, sb_solver, false);
+    std::cout << "Testing SimpleBounce:" << std::endl;
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., n_spatial_dimensions);
+    sb_solver->set_verbose(true);
+    run_test(tests, model, sb_solver, true, true);
     // run_test_normalised(tests, model, sb_solver, true);
 
-    std::cout << "Testing Maupertuis:" << std::endl;
-    std::shared_ptr<GenericBounceSolver> mp_solver = std::make_shared<CasadiMaupertuisSolver>(n_spatial_dimensions);
-    mp_solver->set_verbose(true);
-    run_test(tests, model, mp_solver, true, true);
+    // std::cout << "Testing Maupertuis:" << std::endl;
+    // std::shared_ptr<GenericBounceSolver> mp_solver = std::make_shared<CasadiMaupertuisSolver>(n_spatial_dimensions);
+    // mp_solver->set_verbose(true);
+    // run_test(tests, model, mp_solver, true, true);
 }
 
