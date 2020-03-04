@@ -54,6 +54,6 @@ int main() {
     BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << sb_path.get_action() << std::endl;
     
-    potential.plot_2d("Bounce Path", 200, true_vacuum, origin, 0.5, {mp_path, sb_path});
+    potential.plot_2d("Bounce Path", 200, true_vacuum, origin, 0.1, {mp_path, sb_path});
     
 }

@@ -79,6 +79,10 @@ public:
       std::vector<point_marker> point_marks = std::vector<point_marker>(),
       plot_paths paths = plot_paths());
 
+   //! Proxy method without the point marks
+    void plot_2d(std::string title, unsigned int axis_size, double x_min, double x_max, 
+      double y_min, double y_max, plot_paths paths = plot_paths());
+
    //! Contour plot with auto plot box around vacua (2 field potentials only)
    void plot_2d(std::string title, unsigned int axis_size, Eigen::VectorXd true_vac, 
       Eigen::VectorXd false_vac, double margin, plot_paths paths = plot_paths());

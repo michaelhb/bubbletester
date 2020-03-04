@@ -23,7 +23,8 @@ void GenericPotential::plot_2d(
 
     Gnuplot gp("tee /tmp/plot.gp | gnuplot -persist");
     gp << "reset\n";
-    gp << "set dgrid3d 200,200,1\n";
+    // gp << "set dgrid3d 200,200,1\n";
+    gp << "set dgrid3d " << axis_size << "," << axis_size << ",1\n";
     gp << "set contour base\n";
     gp << "unset surface\n";
     gp << "set cntrparam levels auto 100\n";
@@ -31,7 +32,8 @@ void GenericPotential::plot_2d(
     gp << "set isosamples 2,250\n";
     gp << "set view map\n";
     gp << "set table '/tmp/contour.txt'\n";
-    gp << "splot '-' using 1:2:(log10($3)) notitle\n";
+    // gp << "splot '-' using 1:2:(log10($3)) notitle\n";
+    gp << "splot '-' using 1:2:3 notitle\n";
     gp.send1d(grid);
 
     gp << "unset contour\n";
@@ -45,7 +47,7 @@ void GenericPotential::plot_2d(
 
     for (int i = 0; i < point_marks.size(); ++i) {
         gp << "set label " << i + 1 << " at " << std::get<0>(point_marks[i]) 
-        << "," << std::get<1>(point_marks[i]) << " point pointtype 2 ps 5 front\n";
+        << "," << std::get<1>(point_marks[i]) << " point pointtype 2 lc rgb 'green' ps 5 front\n";
     }
 
     gp << "plot '-' u 1:2:3 w image not, '/tmp/contour.txt' u 1:2 w l lc rgb 'red' not";
@@ -66,6 +68,14 @@ void GenericPotential::plot_2d(
         }
         gp.send1d(path_points);
     }
+}
+
+//! Utility method for plotting 2d potentials.
+void GenericPotential::plot_2d(
+    std::string title, unsigned int axis_size, double x_min, double x_max, 
+    double y_min, double y_max, plot_paths paths) {
+    std::vector<point_marker> point_marks;
+    plot_2d(title, axis_size, x_min, x_max, y_min, y_max, point_marks, paths);
 }
 
 void GenericPotential::plot_2d(std::string title, unsigned int axis_size,
@@ -108,7 +118,7 @@ double GenericPotential::find_minimum(std::vector<data_row> grid) {
 //! Get the data for 2d potential plots 
 std::vector<std::tuple<double, double, double>> GenericPotential::get_2d_potential_grid(
     unsigned int axis_size, double x_min, double x_max, double y_min, double y_max) {
-        
+
     if (get_number_of_fields() != 2) {
         throw std::invalid_argument("Can only get potential grid for 2 field potentials");
     }
@@ -122,11 +132,11 @@ std::vector<std::tuple<double, double, double>> GenericPotential::get_2d_potenti
 
     for (unsigned int ix = 0; ix < axis_size; ix++) {
         for (unsigned int iy = 0; iy < axis_size; iy++) {
-        double x = x_min + ix*x_step;
-        double y = y_min + iy*y_step;
-        Eigen::Vector2d eval_coord(x, y);
-        double z = (*this)(eval_coord);
-        grid.push_back(std::make_tuple(x, y, z));
+            double x = x_min + ix*x_step;
+            double y = y_min + iy*y_step;
+            Eigen::Vector2d eval_coord(x, y);
+            double z = (*this)(eval_coord);
+            grid.push_back(std::make_tuple(x, y, z));
         }
     }
 
@@ -186,13 +196,24 @@ Eigen::VectorXd GenericPotential::minimise(
     
     std::vector<double> lb(lb_.data(), lb_.data() + lb_.size());
     std::vector<double> ub(ub_.data(), ub_.data() + ub_.size());
+
+    double x_tol_rel = 0.0001;
+    double x_tol_abs = 0.0001;
+    double max_time = 5.;
+    int maxeval = 1000000;
+    std::vector<double> step(n_fields, 1.);
     
-    nlopt::opt opt(nlopt::GN_DIRECT_L, n_fields);
+    nlopt::opt opt(nlopt::LN_SBPLX, n_fields);
     opt.set_lower_bounds(lb);
     opt.set_upper_bounds(ub);
+    opt.set_xtol_rel(x_tol_rel);
+    opt.set_xtol_abs(x_tol_abs);
+    opt.set_maxtime(max_time);
+    opt.set_maxeval(maxeval);
+    opt.set_initial_step(step);
+
 
     opt.set_min_objective(nlopt_wrapper, this);
-    opt.set_ftol_rel(1e-4);
 
     std::vector<double> res(start_.data(), start_.data() + start_.size());
     double res_val;
