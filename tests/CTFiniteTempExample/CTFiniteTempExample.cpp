@@ -55,21 +55,22 @@ int main() {
     // int n = 30.;
     
     // Nice curved case
+    double m1 = 120.;
+    double m2 = 50.;
+    double mu = 2.;
+    double Y1 = 1.;
+    double Y2 = .15;
+    int n = 30.;
+    double T = 78.;
+
+    // Works in ThermalPotential!
     // double m1 = 120.;
     // double m2 = 50.;
-    // double mu = 2.;
-    // double Y1 = 1.;
+    // double mu = 20.;
+    // double Y1 = .1;
     // double Y2 = .15;
     // int n = 30.;
     // double T = 78.;
-
-    double m1 = 120.;
-    double m2 = 50.;
-    double mu = 25.;
-    double Y1 = 0.5;
-    double Y2 = .15;
-    int n = 30.;
-    double T = 25.;
 
     CTFiniteTempModel model = CTFiniteTempModel(m1, m2, mu, Y1, Y2, n, renorm_scale);
     
@@ -103,7 +104,6 @@ int main() {
         false_vacuum_n << 0., 0.;
         margin = .2;
     }
-
 
     std::cout << "v(true) = " << potential(true_vacuum_n) << std::endl;
     std::cout << "v(false) = " << potential(false_vacuum_n) << std::endl;

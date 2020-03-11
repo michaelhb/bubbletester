@@ -95,7 +95,7 @@ private:
         double T = 1.;
         
         // Control intervals and spacing
-        int N = 20;
+        int N = 50;
         double h = T/N;
 
         // Degree of interpolating polynomials
@@ -175,7 +175,7 @@ private:
 
         /**** Initialise control variables ****/
         std::vector<MX> controls = {}; 
-        for (int k = 0; k < N; ++k) {
+        for (int k = 0; k < N + 1; ++k) {
             MX Uk = MX::sym(varname("U", {k}), n_phi);
             controls.push_back(Uk);
             w.push_back(Uk);
@@ -256,8 +256,11 @@ private:
                     phidot_approx += C[r + 1][j]*collocation_states[k][r];
                 }
 
+                // Linear interpolation of controls
+                MX control_int = tau_root[j]*controls[k + 1] + (1 - tau_root[j])*controls[k];
+
                 // We relate this to the derivative (control) U_k
-                g.push_back(h*controls[k] - phidot_approx);
+                g.push_back(h*control_int - phidot_approx);
                 append_d(lbg, zeroes);
                 append_d(ubg, zeroes);
             }
@@ -266,7 +269,10 @@ private:
         /**** Construct the objective function ****/
         for (int k = 0; k < N; ++k) {
             for (int j = 1; j <= d; ++j) {
-                std::vector<MX> arg = {collocation_states[k][j - 1], controls[k]};
+                // Linear interpolation of controls
+                MX control_int = tau_root[j]*controls[k + 1] + (1 - tau_root[j])*controls[k];
+                
+                std::vector<MX> arg = {collocation_states[k][j - 1], control_int};
                 MX dL = L(arg)[0];
                 J = J + B[j]*dL*h;
             }
