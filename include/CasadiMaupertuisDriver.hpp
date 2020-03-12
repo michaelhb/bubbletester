@@ -2,12 +2,14 @@
 #define BUBBLETESTER_CASADIMAUPERTUISDRIVER_HPP_INCLUDED
 
 #include <memory>
+#include <chrono>
 #include <casadi/casadi.hpp>
 
 #include "GenericBounceSolver.hpp"
 #include "GenericPotential.hpp"
 #include "CasadiPotential.hpp"
 #include "BouncePath.hpp"
+#include "CasadiMaupertuisDriver.hpp"
 
 
 namespace BubbleTester {
@@ -78,6 +80,7 @@ private:
                       const Eigen::VectorXd& false_vacuum,
                       casadi::Function potential) const {
         using namespace casadi;
+        using namespace std::chrono;
 
         DM true_vac = eigen_to_dm(true_vacuum);
         DM false_vac = eigen_to_dm(false_vacuum);
@@ -86,7 +89,7 @@ private:
         std::cout << "TRUE VAC: " << true_vac << std::endl;
 
         int n_phi = false_vac.size1();
-        MX phi = MX::sym("phi", n_phi);
+        SX phi = SX::sym("phi", n_phi);
 
         // Value of potential at false 
         DM v_true = potential(true_vac);
@@ -95,11 +98,11 @@ private:
         double T = 1.;
         
         // Control intervals and spacing
-        int N = 50;
+        int N = 5;
         double h = T/N;
 
         // Degree of interpolating polynomials
-        int d = 3;
+        int d = 5;
 
         // Linear ansatz
         auto ansatz = [T, false_vac, true_vac](double t) {
@@ -147,36 +150,25 @@ private:
             Polynomial ip = p.anti_derivative();
             B[j] = ip(1.0);
         }
-        
-        // Control variables (in this case, corresponding to phi_dot)
-        MX u = MX::sym("u", n_phi);
-
-        // Define the integrand in the objective function
-        Function L = Function("L", 
-            {phi, u}, {sqrt(2*MX::abs(MX::minus(potential(phi)[0], v_true)))*norm_2(u)},
-            {"phi", "u"}, {"L(phi, u)"});
-
-        // Dynamics function (trivial here, just u = phidot)
-        Function f = Function("f", {phi, u}, {u}, {"phi", "u"}, {"phidot"});
 
         // Begin constructing NLP
-        std::vector<MX> w = {}; // All decision variables
+        std::vector<SX> w = {}; // All decision variables
         std::vector<double> w0 = {}; // Initial values for decision variables
         std::vector<double> lbw = {}; // Lower bounds for decision variables
         std::vector<double> ubw = {}; // Upper bounds for decision variables
-        std::vector<MX> g = {}; // All constraint functions
+        std::vector<SX> g = {}; // All constraint functions
         std::vector<double> lbg = {}; // Lower bounds for constraints
         std::vector<double> ubg = {}; // Upper bounds for constraints
-        MX J = 0; // Objective function
+        SX J = 0; // Objective function
 
         // Limits for unbounded variables
         std::vector<double> ubinf(n_phi, inf);
         std::vector<double> lbinf(n_phi, -inf);
 
         /**** Initialise control variables ****/
-        std::vector<MX> controls = {}; 
+        std::vector<SX> controls = {}; 
         for (int k = 0; k < N + 1; ++k) {
-            MX Uk = MX::sym(varname("U", {k}), n_phi);
+            SX Uk = SX::sym(varname("U", {k}), n_phi);
             controls.push_back(Uk);
             w.push_back(Uk);
             append_d(lbw, lbinf);
@@ -187,17 +179,17 @@ private:
         /**** Initialise state variables ****/
 
         // Start with initial state fixed to true vacuum
-        MX phi_0_0 = MX::sym("phi_0_0", n_phi);
+        SX phi_0_0 = SX::sym("phi_0_0", n_phi);
         w.push_back(phi_0_0);
         append_d(lbw, true_vac.get_elements());
         append_d(ubw, true_vac.get_elements());
         append_d(w0, true_vac.get_elements());
 
         // Free endpoint states
-        std::vector<MX> endpoints;
+        std::vector<SX> endpoints;
         endpoints.push_back(phi_0_0);
         for (int k = 1; k < N; ++k) {
-            MX phi_k_0 = MX::sym(varname("phi", {k, 0}), n_phi);
+            SX phi_k_0 = SX::sym(varname("phi", {k, 0}), n_phi);
             endpoints.push_back(phi_k_0);
             w.push_back(phi_k_0);
             append_d(lbw, lbinf);
@@ -206,94 +198,144 @@ private:
         }
 
         // Final state, fixed to the false vacuum
-        MX phi_N_0 = MX::sym("phi_N_0", n_phi);
+        SX phi_N_0 = SX::sym("phi_N_0", n_phi);
         endpoints.push_back(phi_N_0);
         w.push_back(phi_N_0);
         append_d(lbw, false_vac.get_elements());
         append_d(ubw, false_vac.get_elements());
         append_d(w0, false_vac.get_elements());
 
-        // Intermediate free states at collocation points
-        std::vector<std::vector<MX>> collocation_states;
+        // Build finite elements (including left endpoints)
+        std::vector<SXVector> element_states;
         for (int k = 0; k < N; ++k) {
-            std::vector<MX> k_states;
+            std::vector<SX> e_states;
+            e_states.push_back(endpoints[k]);
             for (int j = 1; j <= d; ++j) {
-                MX phi_k_j = MX::sym(varname("phi", {k, j}), n_phi);
-                k_states.push_back(phi_k_j);
+                SX phi_k_j = SX::sym(varname("phi", {k, j}), n_phi);
+                e_states.push_back(phi_k_j);
                 w.push_back(phi_k_j);
                 append_d(lbw, lbinf);
                 append_d(ubw, ubinf);
                 append_d(w0, ansatz(t_kj(k, j)));
             }
-            collocation_states.push_back(k_states);
+            element_states.push_back(e_states);
         }
+
+        /**** Useful functions of the state and control variables ****/
+        SXVector element;
+        for (int j = 0; j <= d; ++j) {
+            element.push_back(SX::sym(varname("phi_k", {j}), n_phi));
+        }        
+        
+        // Estimate for the state at end of control interval
+        SX phi_end = 0;
+        
+        for (int i = 0; i <= d; ++i) {
+            phi_end += D[i]*element[i];
+        }
+        
+        Function Phi_end = Function("Phi_end", element, {phi_end});
+
+        // Interpolated controls in an element
+        SX control_start = SX::sym("u_k", n_phi);
+        SX control_end = SX::sym("u_k+1", n_phi);
+        SXVector control_int;
+
+        for (int j = 1; j <= d; ++j) {
+            control_int.push_back(
+                (1 - tau_root[j])*control_start + tau_root[j]*control_end
+            );
+        }
+        
+        // Derivative constraints in an element
+        SXVector phidot_cons;
+        
+        for (int j = 1; j <= d; ++j) {
+            SX phidot_approx = 0;
+            for (int r = 0; r <= d; ++r) {
+                phidot_approx += C[r][j]*element[r];
+            }
+            phidot_cons.push_back(h*control_int[j - 1] - phidot_approx);
+        }
+        
+        SXVector phidot_inputs = SXVector(element);
+        phidot_inputs.push_back(control_start);
+        phidot_inputs.push_back(control_end);
+
+        Function Phidot_cons = Function("Phidot_cons", phidot_inputs, phidot_cons);
+
+        // Value of objective on an element
+        SX j_k = 0;
+
+        for (int j = 1; j <= d; ++j) {
+            SX dL = sqrt(2*SX::abs(SX::minus(
+                potential(element[j])[0], v_true)))*norm_2(control_int[j - 1]);
+            j_k = j_k + B[j]*dL*h;
+        }
+
+        Function J_k = Function("J_k", phidot_inputs, {j_k});
 
         /**** Implement the constraints ****/
 
         // Zero vector for constraint bounds
         std::vector<double> zeroes(n_phi, 0);
 
+        // Zero vector for collocation bounds
+        std::vector<double> zeroes_col(d*n_phi, 0);
+
         // Continuity equations
         for (int k = 0; k < N; ++k) {
-            // Approximation of phi_(k+1)_0 using the k-domain collocation points
-            MX phi_end = D[0]*endpoints[k];
-            for (int j = 1; j <= d; ++j) {
-                phi_end += D[j]*collocation_states[k][j - 1];
-            }
-
-            // We require that this is equal to the the actual value of phi_(k+1)_0
-            g.push_back(phi_end - endpoints[k + 1]);
+            g.push_back(Phi_end(element_states[k])[0] - endpoints[k + 1]);
             append_d(lbg, zeroes);
             append_d(ubg, zeroes);
         }
 
-        // Collocation equations
+        // Collocation equations and objective function
         for (int k = 0; k < N; ++k) {
-            for (int j = 1; j <= d; ++j) {
-                // Approximation of the state derivative at each collocation point
-                MX phidot_approx = C[0][j]*endpoints[k];
-                for (int r = 0; r < d; ++r) {
-                    phidot_approx += C[r + 1][j]*collocation_states[k][r];
-                }
+            SXVector phidot_inputs_ = SXVector(element_states[k]);
+            phidot_inputs_.push_back(controls[k]);
+            phidot_inputs_.push_back(controls[k + 1]);
+            g.push_back(SX::vertcat(Phidot_cons(phidot_inputs_)));
+            append_d(lbg, zeroes_col);
+            append_d(ubg, zeroes_col);
 
-                // Linear interpolation of controls
-                MX control_int = tau_root[j]*controls[k + 1] + (1 - tau_root[j])*controls[k];
-
-                // We relate this to the derivative (control) U_k
-                g.push_back(h*control_int - phidot_approx);
-                append_d(lbg, zeroes);
-                append_d(ubg, zeroes);
-            }
-        }
-
-        /**** Construct the objective function ****/
-        for (int k = 0; k < N; ++k) {
-            for (int j = 1; j <= d; ++j) {
-                // Linear interpolation of controls
-                MX control_int = tau_root[j]*controls[k + 1] + (1 - tau_root[j])*controls[k];
-                
-                std::vector<MX> arg = {collocation_states[k][j - 1], control_int};
-                MX dL = L(arg)[0];
-                J = J + B[j]*dL*h;
-            }
+            J = J + J_k(phidot_inputs_)[0];
         }
 
         /**** Initialise and solve the NLP ****/
-        
+
         // Collect states and constraints into single vectors
-        MX W = MX::vertcat(w);
-        MX G = MX::vertcat(g);
+        SX W = SX::vertcat(w);
+        SX G = SX::vertcat(g);
+
+        std::cout << "#### STATES: " << std::endl << W << std::endl;
+        std::cout << "#### CONSTRAINTS: " << std::endl << G << std::endl;
+        std::cout << "#### OBJECTIVE: " << std::endl << J << std::endl;
 
         // Create the solver
-        MXDict nlp = {{"f", J}, {"x", W}, {"g", G}};
-        Function solver = nlpsol("nlpsol", "ipopt", nlp);
+        
+        SXDict nlp = {{"f", J}, {"x", W}, {"g", G}};
+        Dict nlp_opt = Dict();
+        // nlp_opt["ipopt.max_iter"] = 9;
+        // nlp_opt["expand"] = true;
+
+        auto t_setup_start = high_resolution_clock::now();
+        Function solver = nlpsol("nlpsol", "ipopt", nlp, nlp_opt);
+        auto t_setup_end = high_resolution_clock::now();
+        auto setup_duration = duration_cast<microseconds>(t_setup_end - t_setup_start).count() * 1e-6;
+        std::cout << "CasadiMaupertuisSolver - setup took " << setup_duration << " sec" << std::endl;
 
         DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
 
+        auto t_solve_start = high_resolution_clock::now();
         DMDict res = solver(arg);
+        auto t_solve_end = high_resolution_clock::now();
+        auto solve_duration = duration_cast<microseconds>(t_solve_end - t_solve_start).count() * 1e-6;
+        std::cout << "CasadiMaupertuisSolver - optimisation took " << solve_duration << " sec" << std::endl;
 
-        MX endpoints_plot = MX::horzcat(endpoints);
-        MX controls_plot =  MX::horzcat(controls);
+        auto t_extract_start = high_resolution_clock::now();
+        SX endpoints_plot = SX::horzcat(endpoints);
+        SX controls_plot =  SX::horzcat(controls);
 
         Function trajectories = Function("trajectories", {W}, {endpoints_plot, controls_plot});
 
@@ -308,6 +350,10 @@ private:
 
         // We're not calculating the action yet, set it to zero            
         double action = 0;
+
+        auto t_extract_end = high_resolution_clock::now();
+        auto extract_duration = duration_cast<microseconds>(t_extract_end - t_extract_start).count() * 1e-6;
+        std::cout << "CasadiMaupertuisSolver - extracting / formatting took " << extract_duration << " sec" << std::endl;
 
         return BouncePath(radii, profiles, action);
     }

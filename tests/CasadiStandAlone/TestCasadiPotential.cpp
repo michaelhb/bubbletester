@@ -1,5 +1,6 @@
 #include <casadi/casadi.hpp>
 #include <Eigen/Core>
+#include <chrono>
 #include "BouncePath.hpp"
 #include "CasadiPotential.hpp"
 #include "CasadiMaupertuisDriver.hpp"
@@ -21,6 +22,7 @@ casadi::Function get_potential(double delta) {
 int main() {
     // using namespace casadi;
     using namespace BubbleTester;
+    using namespace std::chrono;
     casadi::Function fPotential = get_potential(0.05);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
@@ -37,10 +39,16 @@ int main() {
     Eigen::VectorXd true_vacuum = potential.minimise(start, lb, ub);
     std::cout << "True vacuum:" << std::endl << true_vacuum << std::endl;
 
-    // Find the thin wall limit solution
     std::shared_ptr<GenericBounceSolver> mp_solver = std::make_shared<CasadiMaupertuisSolver>(2);
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
+	
+    auto t1 = high_resolution_clock::now();
     BouncePath mp_path = mp_solver->solve(true_vacuum, origin, potential);
-    // potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.5, {mp_path});
+    auto t2 = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(t2 - t1);
+    std::cout << "GenericPotential::solve: " << duration.count()*1e-6 << " sec" << std::endl;
+
+    // potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
 
     // Have a go with BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
@@ -49,11 +57,11 @@ int main() {
     // potential.plot_2d("BubbleProfiler solution", 200, true_vacuum, origin, 0.5, bp_path);
 
     // Have a go with SimpleBounce
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
-    sb_solver->set_verbose(true);
-    BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
-    std::cout << "Action = " << sb_path.get_action() << std::endl;
+    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
+    // sb_solver->set_verbose(true);
+    // BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
+    // std::cout << "Action = " << sb_path.get_action() << std::endl;
     
-    potential.plot_2d("Bounce Path", 200, true_vacuum, origin, 0.1, {mp_path, sb_path});
+    // potential.plot_2d("Bounce Path", 200, true_vacuum, origin, 0.1, {mp_path, sb_path});
     
 }
