@@ -48,7 +48,7 @@ int main() {
     auto duration = duration_cast<microseconds>(t2 - t1);
     std::cout << "GenericPotential::solve: " << duration.count()*1e-6 << " sec" << std::endl;
 
-    // potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
+    potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
 
     // Have a go with BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);

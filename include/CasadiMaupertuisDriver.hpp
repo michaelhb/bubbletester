@@ -9,8 +9,6 @@
 #include "GenericPotential.hpp"
 #include "CasadiPotential.hpp"
 #include "BouncePath.hpp"
-#include "CasadiMaupertuisDriver.hpp"
-
 
 namespace BubbleTester {
 
@@ -127,6 +125,9 @@ private:
         // Coefficients for Gaussian quadrature 
         std::vector<double> B(d+1, 0);
 
+        // The polynomial basis
+        std::vector<Polynomial> P(d + 1);
+
         // Construct polynomial basis & extract relevant coefficients
         for (int j = 0; j < d + 1; ++j) {
 
@@ -136,11 +137,12 @@ private:
                     p *= Polynomial(-tau_root[r],1)/(tau_root[j]-tau_root[r]);
                 }
             }
+            P[j] = p;
 
             // Evaluate the polynomial at the final time to get the coefficients of the continuity equation
             D[j] = p(1.0);
 
-            // Evaluate the time derivative of the polynomial at all collocation points to get the coefficients of the continuity equation
+            // Evaluate the time derivative of the polynomial at all collocation points 
             Polynomial dp = p.derivative();
             for(int r=0; r<d+1; ++r){
                 C[j][r] = dp(tau_root[r]);
@@ -207,6 +209,7 @@ private:
 
         // Build finite elements (including left endpoints)
         std::vector<SXVector> element_states;
+        SXVector element_plot;
         for (int k = 0; k < N; ++k) {
             std::vector<SX> e_states;
             e_states.push_back(endpoints[k]);
@@ -218,6 +221,7 @@ private:
                 append_d(ubw, ubinf);
                 append_d(w0, ansatz(t_kj(k, j)));
             }
+            element_plot.push_back(SX::horzcat(e_states));
             element_states.push_back(e_states);
         }
 
@@ -308,16 +312,9 @@ private:
         SX W = SX::vertcat(w);
         SX G = SX::vertcat(g);
 
-        std::cout << "#### STATES: " << std::endl << W << std::endl;
-        std::cout << "#### CONSTRAINTS: " << std::endl << G << std::endl;
-        std::cout << "#### OBJECTIVE: " << std::endl << J << std::endl;
-
-        // Create the solver
-        
+        // Create the solver (this is one of the bottlenecks, so we time it)
         SXDict nlp = {{"f", J}, {"x", W}, {"g", G}};
         Dict nlp_opt = Dict();
-        // nlp_opt["ipopt.max_iter"] = 9;
-        // nlp_opt["expand"] = true;
 
         auto t_setup_start = high_resolution_clock::now();
         Function solver = nlpsol("nlpsol", "ipopt", nlp, nlp_opt);
@@ -325,37 +322,71 @@ private:
         auto setup_duration = duration_cast<microseconds>(t_setup_end - t_setup_start).count() * 1e-6;
         std::cout << "CasadiMaupertuisSolver - setup took " << setup_duration << " sec" << std::endl;
 
+        // Run the optimiser. This is the other bottleneck, so we time it too.
         DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
-
         auto t_solve_start = high_resolution_clock::now();
         DMDict res = solver(arg);
         auto t_solve_end = high_resolution_clock::now();
         auto solve_duration = duration_cast<microseconds>(t_solve_end - t_solve_start).count() * 1e-6;
         std::cout << "CasadiMaupertuisSolver - optimisation took " << solve_duration << " sec" << std::endl;
 
+        // Return the result (interpolated using the Lagrange representation)
         auto t_extract_start = high_resolution_clock::now();
         SX endpoints_plot = SX::horzcat(endpoints);
-        SX controls_plot =  SX::horzcat(controls);
+        SX elements_plot = SX::horzcat(element_plot);
 
-        Function trajectories = Function("trajectories", {W}, {endpoints_plot, controls_plot});
+        Function trajectories = Function("trajectories", {W}, {endpoints_plot});
+        Function elements = Function("elements", {W}, {elements_plot});
 
         Eigen::MatrixXd profiles = 
             Eigen::Map<Eigen::MatrixXd>(
                 trajectories(res["x"]).at(0).get_elements().data(), n_phi, N + 1).transpose();
 
-        Eigen::VectorXd radii(N + 1);
-        for (int k = 0; k <= N; ++k) {
-            radii(k) = t_kj(k, 0);
-        }
+        Eigen::MatrixXd elementmx = 
+            Eigen::Map<Eigen::MatrixXd>(
+                elements(res["x"]).at(0).get_elements().data(), n_phi, N*(d + 1)).transpose();
 
-        // We're not calculating the action yet, set it to zero            
+        int points_per = 10;
+
+        Eigen::MatrixXd interpolation = interpolate_elements(elementmx, P, N, n_phi, d, points_per);
+        interpolation.conservativeResize(interpolation.rows() + 1, interpolation.cols());
+        interpolation.row(interpolation.rows() - 1) = profiles.row(profiles.rows() - 1);
+
+        // Dummy action and radii for now.
         double action = 0;
-
+        Eigen::VectorXd radii = Eigen::VectorXd::Zero(points_per*N + 1);
+        
         auto t_extract_end = high_resolution_clock::now();
         auto extract_duration = duration_cast<microseconds>(t_extract_end - t_extract_start).count() * 1e-6;
         std::cout << "CasadiMaupertuisSolver - extracting / formatting took " << extract_duration << " sec" << std::endl;
+        return BouncePath(radii, interpolation, action);
+    }
 
-        return BouncePath(radii, profiles, action);
+    Eigen::MatrixXd interpolate_elements(Eigen::MatrixXd elements, std::vector<casadi::Polynomial> P, int n_elem, int n_phi, int d, int points_per) const {
+        using namespace casadi;
+        
+        Eigen::MatrixXd interpolation(n_elem*points_per, n_phi);
+        
+        double dtau = 1.0/points_per;
+        Eigen::VectorXd tau(points_per);
+        for (int i = 0; i < points_per; ++i) {
+            tau(i) = i*dtau;
+        }
+
+        for (int k = 0; k < n_elem; ++k) {
+            for (int t = 0; t < points_per; ++t) {
+                double tau_t = tau(t);
+                Eigen::VectorXd x_k_t = Eigen::VectorXd::Zero(n_phi);
+
+                for (int r = 0; r <= d; ++r) {
+                    Eigen::VectorXd x_kr = elements.row(k*(d + 1) + r);
+                    x_k_t += P[r](tau_t)*x_kr;
+                }
+                interpolation.row(k*points_per + t) = x_k_t;
+            }
+        }
+        
+        return interpolation;
     }
 };
 
