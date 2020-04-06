@@ -4,6 +4,7 @@
 #include "BouncePath.hpp"
 #include "CasadiPotential.hpp"
 #include "CasadiMaupertuisDriver.hpp"
+#include "CasadiCollocationDriver.hpp"
 #include "BP1Driver.hpp"
 #include "SimpleBounceDriver.hpp"
 
@@ -23,7 +24,8 @@ int main() {
     // using namespace casadi;
     using namespace BubbleTester;
     using namespace std::chrono;
-    casadi::Function fPotential = get_potential(0.05);
+    double delta = 0.3;
+    casadi::Function fPotential = get_potential(delta);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
     Eigen::VectorXd origin = Eigen::VectorXd::Zero(2);
@@ -39,29 +41,40 @@ int main() {
     Eigen::VectorXd true_vacuum = potential.minimise(start, lb, ub);
     std::cout << "True vacuum:" << std::endl << true_vacuum << std::endl;
 
-    std::shared_ptr<GenericBounceSolver> mp_solver = std::make_shared<CasadiMaupertuisSolver>(2);
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
-	
-    auto t1 = high_resolution_clock::now();
-    BouncePath mp_path = mp_solver->solve(true_vacuum, origin, potential);
-    auto t2 = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(t2 - t1);
-    std::cout << "GenericPotential::solve: " << duration.count()*1e-6 << " sec" << std::endl;
+    // Thin wall solver
+    // std::shared_ptr<GenericBounceSolver> mp_solver = std::make_shared<CasadiMaupertuisSolver>(2);	
+    // auto t1 = high_resolution_clock::now();
+    // BouncePath mp_path = mp_solver->solve(true_vacuum, origin, potential);
+    // auto t2 = high_resolution_clock::now();
+    // auto duration = duration_cast<microseconds>(t2 - t1);
+    // std::cout << "GenericPotential::solve: " << duration.count()*1e-6 << " sec" << std::endl;
+    // potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
 
-    potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
+    // Collocation Solver
+    std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(1, 5);
+    c_solver->set_verbose(true);
+    BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
 
-    // Have a go with BubbleProfiler
+    // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
     // bp_solver->set_verbose(true);
     // BouncePath bp_path = bp_solver->solve(true_vacuum, origin, potential);
-    // potential.plot_2d("BubbleProfiler solution", 200, true_vacuum, origin, 0.5, bp_path);
+    // potential.plot_2d("BubbleProfiler solution", 200, true_vacuum, origin, 0.5, {bp_path});
+    // std::cout << "Action = " << bp_path.get_action() << std::endl;
+    // std::cout << "Radii:" << std::endl << bp_path.get_radii() << std::endl;
+    // std::cout << "Profiles:" << std::endl << bp_path.get_profiles() << std::endl;
 
-    // Have a go with SimpleBounce
+    // SimpleBounce
     // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
     // sb_solver->set_verbose(true);
     // BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
     // std::cout << "Action = " << sb_path.get_action() << std::endl;
-    
-    // potential.plot_2d("Bounce Path", 200, true_vacuum, origin, 0.1, {mp_path, sb_path});
+    // std::cout << "Radii:" << std::endl << sb_path.get_radii() << std::endl;
+    // std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
+
+    // Combined plot
+    // std::ostringstream title;
+    // title << "Bounce path (SimpleBounce) compared to thin wall limit (delta = " << delta << ")";
+    // potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {mp_path, sb_path});
     
 }
