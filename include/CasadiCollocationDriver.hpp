@@ -117,8 +117,8 @@ private:
         collocation_points.push_back(1.0);
 
         // TEMP - hard coded ansatz parameters
-        double r0 = 2;
-        double sigma = 1;
+        double r0 = 1;
+        double sigma = 0.1;
         
         // Kink ansatz
         auto ansatz_tau = [this, true_vac, false_vac, r0, sigma](double tau) {
@@ -139,18 +139,21 @@ private:
             T.push_back(Tr_dot(collocation_points[i]));
         }
 
-        // Set up the state ((N + 1)*n) and control (N*n) matrices.
+        // Set up the state ((N + 1)*n) and control (N*n) matrices,
+        // and the initial (ansatz) values
         SXVector Phi, U;
         std::vector<double> Phi0, U0;
 
         for (int i = 0; i <= n_nodes; ++i) {
             Phi.push_back(SX::sym(varname("phi",{i}), n_phi));
-            append_d(Phi0, ansatz_tau(collocation_points[i]));
         }
-
         for (int i = 0; i < n_nodes; ++i) {
             U.push_back(SX::sym(varname("u",{i}), n_phi));
+            append_d(Phi0, ansatz_tau(collocation_points[i]));
             append_d(U0, dansatz_dtau(collocation_points[i]));
+        }
+        for (int i = 0; i < n_phi; ++i) { // endpoint for Phi only
+            Phi0.push_back(false_vacuum(i));
         }
 
         /**** Set up the boundary conditions ****/
@@ -209,6 +212,10 @@ private:
                 T[i]*potential({Phi[i]})[0];
         }
 
+        // Evaluate the constraint functional on the ansatz to fix V0
+        Function fV = Function("fV", {vertcat(Phi)}, {V});
+        double V0 = fV(DM(Phi0))[0].get_elements()[0];
+
         /**** Build the cost functional ****/
         SX J = 0;
         for (int i = 0; i < n_nodes; ++i) {
@@ -218,19 +225,52 @@ private:
                 T[i]*norm_2(U[i]);
         }
 
-        // TEMP
-        std::cout << "State matrix:" << std::endl << Phi << std::endl;
-        std::cout << "Control matrix:" << std::endl << U << std::endl;
-        std::cout << "Differentiation matrix:" << std::endl << D << std::endl;
-        std::cout << "Constraint functional:" << std::endl << V << std::endl;
-        std::cout << "Cost functional:" << std::endl << J << std::endl;
+        // TEMP - evaluate cost functional on ansatz cos why not
+        Function fT = Function("fT", {vertcat(U)}, {J});
+        double T0 = fT(DM(U0))[0].get_elements()[0];
 
-        std::cout << "ubPhi: " << ubPhi << std::endl;
-        std::cout << "lbPhi: " << lbPhi << std::endl;
-        std::cout << "ubU: " << ubU << std::endl;
-        std::cout << "lbU: " << lbU << std::endl;
-        std::cout << "Phi0:" << Phi0 << std::endl;
-        std::cout << "U0:" << U0 << std::endl;
+        /**** Concatenate all decision variables and constraints ****/
+        
+        SXVector w = {}; // All decision variables
+        std::vector<double> w0 = {}; // Initial values for decision variables
+        std::vector<double> lbw = {}; // Lower bounds for decision variables
+        std::vector<double> ubw = {}; // Upper bounds for decision variables      
+        
+        SXVector g = {}; // All constraints
+        std::vector<double> lbg = {}; // Lower bounds for constraints
+        std::vector<double> ubg = {}; // Upper bounds for constraints
+
+        // State variables
+        w.insert(w.end(), Phi.begin(), Phi.end());
+        w0.insert(w0.end(), Phi0.begin(), Phi0.end());
+        lbw.insert(lbw.end(), lbPhi.begin(), lbPhi.end());
+        ubw.insert(ubw.end(), ubPhi.begin(), ubPhi.end());
+
+        // Control variables
+        w.insert(w.end(), U.begin(), U.end());
+        w0.insert(w0.end(), U0.begin(), U0.end());
+        lbw.insert(lbw.end(), lbU.begin(), lbU.end());
+        ubw.insert(ubw.end(), ubU.begin(), ubU.end());
+
+        // Zero vector for constraint bounds
+        std::vector<double> zeroes(n_phi, 0);
+
+        // Dynamic constraints
+        for (int i = 0; i < n_nodes; ++i) {
+            SX dphi_i = 0;
+            for (int j = 0; j <= n_nodes; ++j) {
+                double D_ij = D[i].get_elements()[j];
+                dphi_i += D_ij*Phi[j];
+            }
+            std::cout << "T_i: " << T[i] << std::endl;
+            g.push_back(dphi_i - T[i]*U[i]);
+            lbg.insert(lbg.end(), zeroes.begin(), zeroes.end());
+            ubg.insert(ubg.end(), zeroes.begin(), zeroes.end());
+        }
+
+        // Collect states & constraints into single vectors
+        SX W = vertcat(w);
+        SX G = vertcat(g);
 
         std::cout << "Collocation points:" << std::endl << collocation_points << std::endl;
 
@@ -244,7 +284,37 @@ private:
             double rho = Tr(collocation_points[i]);
             std::cout << ansatz(rho, true_vac, false_vac, r0, sigma) << std::endl;
         }
-        
+
+        // Create the solver
+        SXDict nlp = {{"f", J}, {"x", W}, {"g", G}};
+        Dict nlp_opt = Dict();
+        Function solver = nlpsol("nlpsol", "ipopt", nlp, nlp_opt);
+
+        // Run the optimiser
+        DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
+        DMDict res = solver(arg);
+
+        std::cout << "V(ansatz) = " << V0 << std::endl;
+        std::cout << "T(ansatz) = " << T0 << std::endl;
+        // std::cout << "State matrix:" << std::endl << Phi << std::endl;
+        // std::cout << "Control matrix:" << std::endl << U << std::endl;
+        // std::cout << "Differentiation matrix:" << std::endl << D << std::endl;
+        // std::cout << "Constraint functional:" << std::endl << V << std::endl;
+        // std::cout << "Cost functional:" << std::endl << J << std::endl;
+
+        // std::cout << "ubPhi: " << ubPhi << std::endl;
+        // std::cout << "lbPhi: " << lbPhi << std::endl;
+        // std::cout << "ubU: " << ubU << std::endl;
+        // std::cout << "lbU: " << lbU << std::endl;
+        // std::cout << "Phi0:" << Phi0 << std::endl;
+        // std::cout << "U0:" << U0 << std::endl;
+
+        // std::cout << "T: " << T << std::endl;
+        // std::cout << "w: " << w << std::endl;
+        // std::cout << "W: " << W << std::endl;
+        // std::cout << "g: " << g << std::endl;
+        // std::cout << "G: " << G << std::endl;
+
         // Return dummy bounce path for now
         return BouncePath();
 
