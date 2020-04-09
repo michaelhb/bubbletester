@@ -76,15 +76,15 @@ private:
         return 2.0 / std::pow(tau - 1, 2);
     }
 
-    //! Inverse of monotonic transformation
-    double Tr_inv(double rho) const {
-        return (rho - 1.0) / (rho + 1.0);
-    }
+    // //! Inverse of monotonic transformation
+    // double Tr_inv(double rho) const {
+    //     return (rho - 1.0) / (rho + 1.0);
+    // }
 
-    //! Derivative of inverse monotonic transformation
-    double Tr_inv_dot(double rho) const {
-        return 1.0 / (Tr_dot(Tr_inv(rho)));
-    }
+    // //! Derivative of inverse monotonic transformation
+    // double Tr_inv_dot(double rho) const {
+    //     return 1.0 / (Tr_dot(Tr_inv(rho)));
+    // }
 
     //! Ansatz in semi-infinite coordinates
     casadi::DM ansatz(double rho, casadi::DM true_vac, casadi::DM false_vac, 
@@ -117,8 +117,8 @@ private:
         collocation_points.push_back(1.0);
 
         // TEMP - hard coded ansatz parameters
-        double r0 = 1;
-        double sigma = 0.1;
+        double r0 = 5;
+        double sigma = 3;
         
         // Kink ansatz
         auto ansatz_tau = [this, true_vac, false_vac, r0, sigma](double tau) {
@@ -182,7 +182,7 @@ private:
 
         for (int j = 0; j <= n_nodes; ++j) {
             Polynomial p = 1;
-            for (int r = 0; r < n_nodes; ++r) {
+            for (int r = 0; r <= n_nodes; ++r) {
                 if (r != j) {
                 p *= Polynomial(-collocation_points[r],1)
                     / (collocation_points[j] - collocation_points[r]);
@@ -198,7 +198,7 @@ private:
         for (int r = 0; r < n_nodes; ++r) {
             std::vector<double> Drow;
             for (int c = 0; c <= n_nodes; ++c) {
-                Drow.push_back(Pder[c](collocation_points[r]));
+                Drow.push_back(Pder[r](collocation_points[c]));
             }
             D.push_back(DM(Drow));
         }
@@ -262,7 +262,6 @@ private:
                 double D_ij = D[i].get_elements()[j];
                 dphi_i += D_ij*Phi[j];
             }
-            std::cout << "T_i: " << T[i] << std::endl;
             g.push_back(dphi_i - T[i]*U[i]);
             lbg.insert(lbg.end(), zeroes.begin(), zeroes.end());
             ubg.insert(ubg.end(), zeroes.begin(), zeroes.end());
@@ -272,19 +271,6 @@ private:
         SX W = vertcat(w);
         SX G = vertcat(g);
 
-        std::cout << "Collocation points:" << std::endl << collocation_points << std::endl;
-
-        std::cout << "Points on semi infinite domain (excl. infty): " << std::endl;
-        for (int i = 0; i < n_nodes; ++i) {
-            std::cout << Tr(collocation_points[i]) << std::endl;
-        }
-
-        std::cout << "Ansatz evaluated on these points:" << std::endl;
-        for (int i = 0; i < n_nodes; ++i) {
-            double rho = Tr(collocation_points[i]);
-            std::cout << ansatz(rho, true_vac, false_vac, r0, sigma) << std::endl;
-        }
-
         // Create the solver
         SXDict nlp = {{"f", J}, {"x", W}, {"g", G}};
         Dict nlp_opt = Dict();
@@ -293,6 +279,24 @@ private:
         // Run the optimiser
         DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
         DMDict res = solver(arg);
+
+        // TEMP
+        // Check the dynamics constraints on the ansatz (should be all ~0)
+        Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
+        DMVector dynArg = {DM(Phi0), DM(U0)};
+        DMVector dynVal = dynF(dynArg);
+        std::cout << "dynF: " << std::endl << dynVal << std::endl;
+        
+        std::cout << std::setprecision(20);
+        std::cout << "Collocation points:" << std::endl;
+        for (int i = 0; i <= n_nodes; ++i) {
+            std::cout << collocation_points[i] << std::endl;
+        }
+
+        std::cout << "Points on semi infinite domain (excl. infty): " << std::endl;
+        for (int i = 0; i < n_nodes; ++i) {
+            std::cout << Tr(collocation_points[i]) << std::endl;
+        }
 
         std::cout << "V(ansatz) = " << V0 << std::endl;
         std::cout << "T(ansatz) = " << T0 << std::endl;
@@ -306,14 +310,24 @@ private:
         // std::cout << "lbPhi: " << lbPhi << std::endl;
         // std::cout << "ubU: " << ubU << std::endl;
         // std::cout << "lbU: " << lbU << std::endl;
-        // std::cout << "Phi0:" << Phi0 << std::endl;
-        // std::cout << "U0:" << U0 << std::endl;
+        std::cout << "Phi0:" << Phi0 << std::endl;
+        std::cout << "U0:" << U0 << std::endl;
 
         // std::cout << "T: " << T << std::endl;
         // std::cout << "w: " << w << std::endl;
         // std::cout << "W: " << W << std::endl;
         // std::cout << "g: " << g << std::endl;
         // std::cout << "G: " << G << std::endl;
+
+        std::cout << "Differentiation matrix:" << std::endl;
+        for (int r = 0; r < n_nodes; ++r) {
+            for (int c = 0; c <= n_nodes; ++c) {
+                std::cout << D[r].get_elements()[c] << '\t';
+            }
+            std::cout << std::endl;
+        }    
+
+        // std::cout << "P: " << std::endl << P << std::endl;
 
         // Return dummy bounce path for now
         return BouncePath();
