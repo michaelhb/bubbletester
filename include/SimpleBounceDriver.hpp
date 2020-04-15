@@ -82,7 +82,8 @@ public:
             // Extract results
             Eigen::VectorXd radii(grid);
             for (int i = 0; i < grid; ++i) {
-                radii(i) = bounce.r(i);
+                // radii(i) = bounce.r(i);
+                radii(i) = bounce.rBounce(i);
             }
             
             Eigen::MatrixXd fields(grid, n_fields);

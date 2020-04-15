@@ -4,16 +4,9 @@
 #include <memory>
 #include <casadi/casadi.hpp>
 #include "GenericPotential.hpp"
+#include "CasadiCommon.hpp"
 
 namespace BubbleTester {
-
-casadi::DM eigen_to_dm(Eigen::VectorXd vec) {
-    casadi::DMVector dmVec;
-    for (int i = 0; i < vec.size(); ++i) {
-        dmVec.push_back(vec(i));
-    }
-    return casadi::DM::vertcat(dmVec);
-}
 
 // Wrap an arbitrary GenericPotential in a casadi::Callback. 
 // For now, we'll let CasADi handle the derivatives with 

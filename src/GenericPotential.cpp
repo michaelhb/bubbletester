@@ -3,12 +3,18 @@
 #include <cmath>
 #include "gnuplot-iostream.h"
 #include "GenericPotential.hpp"
+#include "BouncePath.hpp"
 #include "Rotation.hpp"
 
 // FOR TESTING
 #include <Eigen/LU>
 
 namespace BubbleTester {
+
+//! Plot the fields as a function of radius
+void GenericPotential::plot_radial(std::string title, BouncePath path) {
+    
+}
 
 //! Utility method for plotting 2d potentials.
 void GenericPotential::plot_2d(

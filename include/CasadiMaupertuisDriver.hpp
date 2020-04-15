@@ -7,24 +7,11 @@
 
 #include "GenericBounceSolver.hpp"
 #include "GenericPotential.hpp"
+#include "CasadiCommon.hpp"
 #include "CasadiPotential.hpp"
 #include "BouncePath.hpp"
 
 namespace BubbleTester {
-
-std::string varname(std::string prefix, std::vector<int> indices) {
-    std::ostringstream ss;
-    ss << prefix;
-    for (auto &ix : indices) {
-        ss << "_" << ix;
-    }
-    return ss.str();
-}
-
-void append_d(std::vector<double> &to, std::vector<double> from) {
-    // Yes I know this is a weird function signature :)
-    to.insert(to.end(), from.begin(), from.end());
-}
 
 class CasadiMaupertuisSolver : public GenericBounceSolver {
 public:
@@ -96,11 +83,11 @@ private:
         double T = 1.;
         
         // Control intervals and spacing
-        int N = 5;
+        int N = 50;
         double h = T/N;
 
         // Degree of interpolating polynomials
-        int d = 5;
+        int d = 3;
 
         // Linear ansatz
         auto ansatz = [T, false_vac, true_vac](double t) {
@@ -315,6 +302,7 @@ private:
         // Create the solver (this is one of the bottlenecks, so we time it)
         SXDict nlp = {{"f", J}, {"x", W}, {"g", G}};
         Dict nlp_opt = Dict();
+        nlp_opt["expand"] = false;
 
         auto t_setup_start = high_resolution_clock::now();
         Function solver = nlpsol("nlpsol", "ipopt", nlp, nlp_opt);
@@ -359,6 +347,9 @@ private:
         auto t_extract_end = high_resolution_clock::now();
         auto extract_duration = duration_cast<microseconds>(t_extract_end - t_extract_start).count() * 1e-6;
         std::cout << "CasadiMaupertuisSolver - extracting / formatting took " << extract_duration << " sec" << std::endl;
+
+        std::cout << W.size() << std::endl;
+
         return BouncePath(radii, interpolation, action);
     }
 

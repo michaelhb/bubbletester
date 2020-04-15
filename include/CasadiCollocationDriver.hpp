@@ -77,14 +77,14 @@ private:
     }
 
     // //! Inverse of monotonic transformation
-    // double Tr_inv(double rho) const {
-    //     return (rho - 1.0) / (rho + 1.0);
-    // }
+    double Tr_inv(double rho) const {
+        return (rho - 1.0) / (rho + 1.0);
+    }
 
-    // //! Derivative of inverse monotonic transformation
-    // double Tr_inv_dot(double rho) const {
-    //     return 1.0 / (Tr_dot(Tr_inv(rho)));
-    // }
+    //! Derivative of inverse monotonic transformation
+    double Tr_inv_dot(double rho) const {
+        return 1.0 / (Tr_dot(Tr_inv(rho)));
+    }
 
     //! Ansatz in semi-infinite coordinates
     casadi::DM ansatz(double rho, casadi::DM true_vac, casadi::DM false_vac, 
@@ -127,7 +127,9 @@ private:
 
         // Kink ansatz derivative
         auto dansatz_dtau = [this, true_vac, false_vac, r0, sigma](double tau) {
-            return (Tr_dot(tau)*ansatz_dot(Tr(tau),
+            // return (Tr_dot(tau)*ansatz_dot(Tr(tau),
+            //     true_vac, false_vac, r0, sigma)).get_elements();
+            return (ansatz_dot(Tr(tau),
                 true_vac, false_vac, r0, sigma)).get_elements();
         };
 
@@ -198,7 +200,7 @@ private:
         for (int r = 0; r < n_nodes; ++r) {
             std::vector<double> Drow;
             for (int c = 0; c <= n_nodes; ++c) {
-                Drow.push_back(Pder[r](collocation_points[c]));
+                Drow.push_back(Pder[c](collocation_points[r]));
             }
             D.push_back(DM(Drow));
         }
@@ -255,13 +257,18 @@ private:
         // Zero vector for constraint bounds
         std::vector<double> zeroes(n_phi, 0);
 
+        // TEMP - save the dphi_i estimates
+        SXVector dphi;
+
         // Dynamic constraints
         for (int i = 0; i < n_nodes; ++i) {
             SX dphi_i = 0;
             for (int j = 0; j <= n_nodes; ++j) {
-                double D_ij = D[i].get_elements()[j];
+                // double D_ij = D[i].get_elements()[j];
+                double D_ij = Pder[j](collocation_points[i]);
                 dphi_i += D_ij*Phi[j];
             }
+            dphi.push_back(dphi_i);
             g.push_back(dphi_i - T[i]*U[i]);
             lbg.insert(lbg.end(), zeroes.begin(), zeroes.end());
             ubg.insert(ubg.end(), zeroes.begin(), zeroes.end());
@@ -286,17 +293,23 @@ private:
         DMVector dynArg = {DM(Phi0), DM(U0)};
         DMVector dynVal = dynF(dynArg);
         std::cout << "dynF: " << std::endl << dynVal << std::endl;
+
+        // Check the derivative estimates 
+        Function derF = Function("derF", {vertcat(Phi)}, {vertcat(dphi)});
+        DMVector derArg = {DM(Phi0)};
+        DMVector derVal = derF(derArg);
+        std::cout << "derF: " << std::endl << derVal << std::endl;
         
         std::cout << std::setprecision(20);
-        std::cout << "Collocation points:" << std::endl;
-        for (int i = 0; i <= n_nodes; ++i) {
-            std::cout << collocation_points[i] << std::endl;
-        }
+        // std::cout << "Collocation points:" << std::endl;
+        // for (int i = 0; i <= n_nodes; ++i) {
+        //     std::cout << collocation_points[i] << std::endl;
+        // }
 
-        std::cout << "Points on semi infinite domain (excl. infty): " << std::endl;
-        for (int i = 0; i < n_nodes; ++i) {
-            std::cout << Tr(collocation_points[i]) << std::endl;
-        }
+        // std::cout << "Points on semi infinite domain (excl. infty): " << std::endl;
+        // for (int i = 0; i < n_nodes; ++i) {
+        //     std::cout << Tr(collocation_points[i]) << std::endl;
+        // }
 
         std::cout << "V(ansatz) = " << V0 << std::endl;
         std::cout << "T(ansatz) = " << T0 << std::endl;
@@ -310,7 +323,7 @@ private:
         // std::cout << "lbPhi: " << lbPhi << std::endl;
         // std::cout << "ubU: " << ubU << std::endl;
         // std::cout << "lbU: " << lbU << std::endl;
-        std::cout << "Phi0:" << Phi0 << std::endl;
+        // std::cout << "Phi0:" << Phi0 << std::endl;
         std::cout << "U0:" << U0 << std::endl;
 
         // std::cout << "T: " << T << std::endl;
@@ -319,15 +332,16 @@ private:
         // std::cout << "g: " << g << std::endl;
         // std::cout << "G: " << G << std::endl;
 
-        std::cout << "Differentiation matrix:" << std::endl;
-        for (int r = 0; r < n_nodes; ++r) {
-            for (int c = 0; c <= n_nodes; ++c) {
-                std::cout << D[r].get_elements()[c] << '\t';
-            }
-            std::cout << std::endl;
-        }    
+        // std::cout << "Differentiation matrix:" << std::endl;
+        // for (int r = 0; r < n_nodes; ++r) {
+        //     for (int c = 0; c <= n_nodes; ++c) {
+        //         std::cout << D[r].get_elements()[c] << '\t';
+        //     }
+        //     std::cout << std::endl;
+        // }    
 
         // std::cout << "P: " << std::endl << P << std::endl;
+        // std::cout << "Pder: " << std::endl << Pder << std::endl;
 
         // Return dummy bounce path for now
         return BouncePath();
