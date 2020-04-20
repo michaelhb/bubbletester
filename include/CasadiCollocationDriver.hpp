@@ -179,31 +179,51 @@ private:
         /**** Construct the Gauss pseudospectral differentiation matrix (D). ****/
 
         // Build the Lagrange basis, and take derivatives of its elements. 
-        std::vector<Polynomial> P;
-        std::vector<Polynomial> Pder;
-
-        for (int j = 0; j <= n_nodes; ++j) {
-            Polynomial p = 1;
-            for (int r = 0; r <= n_nodes; ++r) {
-                if (r != j) {
-                p *= Polynomial(-collocation_points[r],1)
-                    / (collocation_points[j] - collocation_points[r]);
-                }
-            }
-            P.push_back(p);
-            Pder.push_back(p.derivative());
+        GiNaC::symbol t("r");
+        std::vector<GiNaC::ex> P = lagrange_basis(t, collocation_points);
+        std::vector<GiNaC::ex> Pder;
+        for (int i = 0; i < P.size(); ++i) {
+            Pder.push_back(P[i].diff(t, 1));
         }
-        
-        // D is (N*(N + 1)); here each entry in D represents a row (N entries).
-        DMVector D;
+
+        std::vector<std::vector<double>> D;
         
         for (int r = 0; r < n_nodes; ++r) {
             std::vector<double> Drow;
             for (int c = 0; c <= n_nodes; ++c) {
-                Drow.push_back(Pder[c](collocation_points[r]));
+                GiNaC::ex Dij = GiNaC::evalf(Pder[c].subs(t == collocation_points[r]));
+                Drow.push_back(GiNaC::ex_to<GiNaC::numeric>(Dij).to_double());
             }
-            D.push_back(DM(Drow));
+            D.push_back(Drow);
         }
+        
+        // std::vector<Polynomial> P;
+        // std::vector<Polynomial> Pder;
+
+        // for (int j = 0; j <= n_nodes; ++j) {
+        //     Polynomial p = 1;
+        //     for (int r = 0; r <= n_nodes; ++r) {
+        //         if (r != j) {
+        //         p *= Polynomial(-collocation_points[r],1)
+        //             / (collocation_points[j] - collocation_points[r]);
+        //         }
+        //     }
+        //     P.push_back(p);
+        //     Pder.push_back(p.derivative());
+        // }
+        
+        // D is (N*(N + 1)); here each entry in D represents a row (N entries).
+        // DMVector D;
+        
+        // for (int r = 0; r < n_nodes; ++r) {
+        //     std::vector<double> Drow;
+        //     for (int c = 0; c <= n_nodes; ++c) {
+        //         //Drow.push_back(Pder[c](collocation_points[r]));
+        //         
+        //         Drow.push_back(GiNaC::ex_to<GiNaC::numeric>(Dij).to_double());
+        //     }
+        //     D.push_back(DM(Drow));
+        // }
         
         /**** Build the constraint functional ****/
         SX V = 0;
@@ -265,7 +285,8 @@ private:
             SX dphi_i = 0;
             for (int j = 0; j <= n_nodes; ++j) {
                 // double D_ij = D[i].get_elements()[j];
-                double D_ij = Pder[j](collocation_points[i]);
+                // double D_ij = Pder[j](collocation_points[i]);
+                double D_ij = D[i][j];
                 dphi_i += D_ij*Phi[j];
             }
             dphi.push_back(dphi_i);
@@ -286,7 +307,7 @@ private:
         // Run the optimiser
         DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
         DMDict res = solver(arg);
-
+        
         // TEMP
         // Check the dynamics constraints on the ansatz (should be all ~0)
         Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
@@ -295,10 +316,10 @@ private:
         std::cout << "dynF: " << std::endl << dynVal << std::endl;
 
         // Check the derivative estimates 
-        Function derF = Function("derF", {vertcat(Phi)}, {vertcat(dphi)});
-        DMVector derArg = {DM(Phi0)};
-        DMVector derVal = derF(derArg);
-        std::cout << "derF: " << std::endl << derVal << std::endl;
+        // Function derF = Function("derF", {vertcat(Phi)}, {vertcat(dphi)});
+        // DMVector derArg = {DM(Phi0)};
+        // DMVector derVal = derF(derArg);
+        // std::cout << "derF: " << std::endl << derVal << std::endl;
         
         std::cout << std::setprecision(20);
         // std::cout << "Collocation points:" << std::endl;

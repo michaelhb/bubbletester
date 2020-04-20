@@ -8,6 +8,7 @@ find_package(libbubbler REQUIRED)
 find_package(effpotential REQUIRED)
 find_package(CASADI REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(CXSC REQUIRED)
 
 # List source files so tests can access them (surely there's a better way?)
 set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp
@@ -19,4 +20,10 @@ set(SRC_FILES ${PROJECT_SOURCE_DIR}/src/SimpleBounce.cpp
 
 # Set up the tests
 add_subdirectory(tests)
+
+# TEMP cxsc test
+add_executable(csxc_ex ${PROJECT_SOURCE_DIR}/src/example.cpp)
+target_link_libraries(csxc_ex ${CSXC_LIBRARIES})
+target_include_directories(csxc_ex PUBLIC ${CXSC_INCLUDE_DIR})
+set_target_properties(csxc_ex PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 

@@ -24,7 +24,7 @@ int main() {
     // using namespace casadi;
     using namespace BubbleTester;
     using namespace std::chrono;
-    double delta = 0.3;
+    double delta = 0.4;
     casadi::Function fPotential = get_potential(delta);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
@@ -51,7 +51,7 @@ int main() {
     // potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
 
     // Collocation Solver
-    std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(1, 5);
+    std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(1, 50);
     c_solver->set_verbose(true);
     BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
 
