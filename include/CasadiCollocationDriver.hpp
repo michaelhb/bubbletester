@@ -202,34 +202,6 @@ private:
             D.push_back(Drow);
         }
         
-        // std::vector<Polynomial> P;
-        // std::vector<Polynomial> Pder;
-
-        // for (int j = 0; j <= n_nodes; ++j) {
-        //     Polynomial p = 1;
-        //     for (int r = 0; r <= n_nodes; ++r) {
-        //         if (r != j) {
-        //         p *= Polynomial(-collocation_points[r],1)
-        //             / (collocation_points[j] - collocation_points[r]);
-        //         }
-        //     }
-        //     P.push_back(p);
-        //     Pder.push_back(p.derivative());
-        // }
-        
-        // D is (N*(N + 1)); here each entry in D represents a row (N entries).
-        // DMVector D;
-        
-        // for (int r = 0; r < n_nodes; ++r) {
-        //     std::vector<double> Drow;
-        //     for (int c = 0; c <= n_nodes; ++c) {
-        //         //Drow.push_back(Pder[c](collocation_points[r]));
-        //         
-        //         Drow.push_back(GiNaC::ex_to<GiNaC::numeric>(Dij).to_double());
-        //     }
-        //     D.push_back(DM(Drow));
-        // }
-        
         /**** Build the constraint functional ****/
         SX V = 0;
         for (int i = 0; i < n_nodes; ++i) {
@@ -255,6 +227,11 @@ private:
         // TEMP - evaluate cost functional on ansatz cos why not
         Function fT = Function("fT", {vertcat(U)}, {J});
         double T0 = fT(DM(U0))[0].get_elements()[0];
+
+        // TEMP - evaluate gradient of cost functional on ansatz
+        SX gradJ = gradient(J, vertcat(U));
+        Function gradT = Function("gradT", {vertcat(U)}, {gradJ});
+        DMVector gradT0 = gradT(DM(U0));
 
         /**** Concatenate all decision variables and constraints ****/
         
@@ -284,13 +261,11 @@ private:
 
         // TEMP - save the dphi_i estimates
         SXVector dphi;
-
+        
         // Dynamic constraints
         for (int i = 0; i < n_nodes; ++i) {
             SX dphi_i = 0;
             for (int j = 0; j <= n_nodes; ++j) {
-                // double D_ij = D[i].get_elements()[j];
-                // double D_ij = Pder[j](collocation_points[i]);
                 double D_ij = D[i][j];
                 dphi_i += D_ij*Phi[j];
             }
@@ -299,7 +274,7 @@ private:
             lbg.insert(lbg.end(), zeroes.begin(), zeroes.end());
             ubg.insert(ubg.end(), zeroes.begin(), zeroes.end());
         }
-
+        
         // Collect states & constraints into single vectors
         SX W = vertcat(w);
         SX G = vertcat(g);
@@ -339,6 +314,7 @@ private:
 
         std::cout << "V(ansatz) = " << V0 << std::endl;
         std::cout << "T(ansatz) = " << T0 << std::endl;
+        std::cout << "gradT(ansatz):" << std::endl << gradT0 << std::endl;
         // std::cout << "State matrix:" << std::endl << Phi << std::endl;
         // std::cout << "Control matrix:" << std::endl << U << std::endl;
         // std::cout << "Differentiation matrix:" << std::endl << D << std::endl;
@@ -355,8 +331,14 @@ private:
         // std::cout << "T: " << T << std::endl;
         // std::cout << "w: " << w << std::endl;
         // std::cout << "W: " << W << std::endl;
+        // std::cout << "w0:" << w0 << std::endl;
         // std::cout << "g: " << g << std::endl;
         // std::cout << "G: " << G << std::endl;
+
+        // Check initial guesses correctly assigned
+        // for (int i = 0; i < W.size1(); ++i) {
+        //     std::cout << W(i) << " = " << w0[i] << std::endl;
+        // }
 
         // std::cout << "Differentiation matrix:" << std::endl;
         // for (int r = 0; r < n_nodes; ++r) {
@@ -368,6 +350,8 @@ private:
 
         // std::cout << "P: " << std::endl << P << std::endl;
         // std::cout << "Pder: " << std::endl << Pder << std::endl;
+
+        
 
         // Return dummy bounce path for now
         return BouncePath();
