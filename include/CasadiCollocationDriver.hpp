@@ -89,13 +89,18 @@ private:
     //! Ansatz in semi-infinite coordinates
     casadi::DM ansatz(double rho, casadi::DM true_vac, casadi::DM false_vac, 
         double r0, double sigma) const {        
-        return true_vac + 0.5*(false_vac - true_vac)*(1 + tanh((rho - r0) / sigma));
+        return true_vac + 0.5*(false_vac - true_vac)*(1 
+            + tanh((rho - r0) / sigma)
+            + exp(-rho)/(sigma*std::pow(cosh(r0/sigma),2)));
     }
 
     //! Derivative of ansatz in semi-infinite coordinates
     casadi::DM ansatz_dot(double rho, casadi::DM true_vac, casadi::DM false_vac,
         double r0, double sigma) const {
-        return (false_vac - true_vac) / (2*sigma*std::pow(cosh((rho - r0) / sigma), 2));
+        // return (false_vac - true_vac) / (2*sigma*std::pow(cosh((rho - r0) / sigma), 2));
+        return ((false_vac - true_vac)/2.0)*(
+                1.0/(sigma*std::pow(cosh((rho-r0)/sigma), 2)) -
+                exp(-rho)/(sigma*std::pow(cosh(r0/sigma), 2)));
     }
 
     BouncePath _solve(const Eigen::VectorXd& true_vacuum, 
@@ -117,7 +122,7 @@ private:
         collocation_points.push_back(1.0);
 
         // TEMP - hard coded ansatz parameters
-        double r0 = 5;
+        double r0 = 3;
         double sigma = 3;
         
         // Kink ansatz
@@ -245,7 +250,7 @@ private:
                 collocation_weights[i]*
                 std::pow(collocation_points[i], d - 1)*
                 T[i]*norm_2(U[i]);
-        }
+        } 
 
         // TEMP - evaluate cost functional on ansatz cos why not
         Function fT = Function("fT", {vertcat(U)}, {J});
