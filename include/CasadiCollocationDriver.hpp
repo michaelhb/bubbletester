@@ -3,11 +3,13 @@
 
 #include <exception>
 #include <cmath>
+#include <chrono>
 #include "CasadiCommon.hpp"
 #include "GenericBounceSolver.hpp"
 #include "GenericPotential.hpp"
 #include "CasadiPotential.hpp"
 #include "BouncePath.hpp"
+#include <boost/math/tools/polynomial.hpp>
 
 namespace BubbleTester {
 
@@ -122,8 +124,8 @@ private:
         collocation_points.push_back(1.0);
 
         // TEMP - hard coded ansatz parameters
-        double r0 = 3;
-        double sigma = 3;
+        double r0 = 2;
+        double sigma = .5;
         
         // Kink ansatz
         auto ansatz_tau = [this, true_vac, false_vac, r0, sigma](double tau) {
@@ -132,8 +134,6 @@ private:
 
         // Kink ansatz derivative
         auto dansatz_dtau = [this, true_vac, false_vac, r0, sigma](double tau) {
-            // return (Tr_dot(tau)*ansatz_dot(Tr(tau),
-            //     true_vac, false_vac, r0, sigma)).get_elements();
             return (ansatz_dot(Tr(tau),
                 true_vac, false_vac, r0, sigma)).get_elements();
         };
@@ -193,7 +193,7 @@ private:
 
         std::vector<std::vector<double>> D;
         
-        for (int r = 0; r < n_nodes; ++r) {
+        for (int r = 0; r <= n_nodes; ++r) {
             std::vector<double> Drow;
             for (int c = 0; c <= n_nodes; ++c) {
                 GiNaC::ex Dij = GiNaC::evalf(Pder[c].subs(t == collocation_points[r]));
@@ -205,10 +205,14 @@ private:
         /**** Build the constraint functional ****/
         SX V = 0;
         for (int i = 0; i < n_nodes; ++i) {
+            // V += \
+            //     collocation_weights[i]*
+            //     std::pow(Tr(collocation_points[i]), d - 1)*
+            //     T[i]*potential({Phi[i]})[0];
             V += \
                 collocation_weights[i]*
-                std::pow(collocation_points[i], d - 1)*
-                T[i]*potential({Phi[i]})[0];
+                std::pow(Tr(collocation_points[i]), d - 1)*
+                Tr_dot(collocation_points[i])*potential({Phi[i]})[0];
         }
 
         // Evaluate the constraint functional on the ansatz to fix V0
@@ -218,11 +222,15 @@ private:
         /**** Build the cost functional ****/
         SX J = 0;
         for (int i = 0; i < n_nodes; ++i) {
+            // J += \
+            //     collocation_weights[i]*
+            //     std::pow(Tr(collocation_points[i]), d - 1)*
+            //     T[i]*dot(U[i],U[i]);
             J += \
                 collocation_weights[i]*
-                std::pow(collocation_points[i], d - 1)*
-                T[i]*norm_2(U[i]);
-        } 
+                std::pow(Tr(collocation_points[i]), d - 1)*
+                Tr_dot(collocation_points[i])*dot(U[i],U[i]);
+        }
 
         // TEMP - evaluate cost functional on ansatz cos why not
         Function fT = Function("fT", {vertcat(U)}, {J});
@@ -261,6 +269,11 @@ private:
 
         // TEMP - save the dphi_i estimates
         SXVector dphi;
+
+        // Potential constraint
+        g.push_back(V0 - V);
+        lbg.push_back(0);
+        ubg.push_back(0);
         
         // Dynamic constraints
         for (int i = 0; i < n_nodes; ++i) {
@@ -285,15 +298,47 @@ private:
         Function solver = nlpsol("nlpsol", "ipopt", nlp, nlp_opt);
 
         // Run the optimiser
+        Function Phi_ret = Function("Phi_ret", {W}, {SX::horzcat(Phi)});
+        Function U_ret = Function("U_ret", {W}, {SX::horzcat(U)});
+        
         DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
         DMDict res = solver(arg);
         
+        DMVector rPhi = Phi_ret(res["x"]);
+        DMVector rU = U_ret(res["x"]);
+
+        // Extract & format path
+        Eigen::MatrixXd profiles(n_nodes + 1, n_phi);
+        for (int c = 0; c < n_phi; c++) {
+            std::vector<double> col = vertsplit(rPhi[0])[c].get_elements();
+            for (int r = 0; r <= n_nodes; ++r) {
+                profiles(r, c) = col[r];
+            }
+        }
+
+        // Print results
+        std::cout << SX::horzcat(Phi) << std::endl;
+        std::cout << "==== Phi_ret ====" << std::endl;
+        std::cout << rPhi << std::endl;
+        std::cout << "==== U_ret ====" << std::endl;
+        std::cout << rU << std::endl;
+        std::cout << "----" << std::endl;
+
+        // Evaluate cost & constraint on results
+        Function T_ret = Function("T_ret", {W}, {J});
+        DM rT = T_ret(res["x"])[0];
+        Function V_ret = Function("V_ret", {W}, {V});
+        DM rV = V_ret(res["x"])[0];
+        std::cout << "T(result) = " << rT << std::endl;
+        std::cout << "V(result) = " << rV << std::endl;
+        std::cout << "----" << std::endl;
+
         // TEMP
         // Check the dynamics constraints on the ansatz (should be all ~0)
-        Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
-        DMVector dynArg = {DM(Phi0), DM(U0)};
-        DMVector dynVal = dynF(dynArg);
-        std::cout << "dynF: " << std::endl << dynVal << std::endl;
+        // Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
+        // DMVector dynArg = {DM(Phi0), DM(U0)};
+        // DMVector dynVal = dynF(dynArg);
+        // std::cout << "dynF: " << std::endl << dynVal << std::endl;
 
         // Check the derivative estimates 
         // Function derF = Function("derF", {vertcat(Phi)}, {vertcat(dphi)});
@@ -325,8 +370,8 @@ private:
         // std::cout << "lbPhi: " << lbPhi << std::endl;
         // std::cout << "ubU: " << ubU << std::endl;
         // std::cout << "lbU: " << lbU << std::endl;
-        // std::cout << "Phi0:" << Phi0 << std::endl;
-        std::cout << "U0:" << U0 << std::endl;
+        std::cout << "Phi0:" << Phi0 << std::endl;
+        // std::cout << "U0:" << U0 << std::endl;
 
         // std::cout << "T: " << T << std::endl;
         // std::cout << "w: " << w << std::endl;
@@ -351,12 +396,12 @@ private:
         // std::cout << "P: " << std::endl << P << std::endl;
         // std::cout << "Pder: " << std::endl << Pder << std::endl;
 
-        
-
-        // Return dummy bounce path for now
-        return BouncePath();
-
+        double action = 0;
+        Eigen::VectorXd radii = Eigen::VectorXd::Zero(n_nodes + 1);
+        return BouncePath(radii, profiles, action);
     }
+
+    
 };
 
 }
