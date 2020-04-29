@@ -54,7 +54,7 @@ int main() {
     std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(3, 50);
     c_solver->set_verbose(true);
     BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
-
+    std::cout << "Action = " << c_path.get_action() << std::endl;
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
     // bp_solver->set_verbose(true);
@@ -71,7 +71,7 @@ int main() {
     // potential.plot_2d("SB Solution", 200, true_vacuum, origin, 0.1, {sb_path});
     std::cout << "Action = " << sb_path.get_action() << std::endl;
     // std::cout << "Radii:" << std::endl << sb_path.get_radii() << std::endl;
-    std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
+    // std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
 
     // Combined plot
     std::ostringstream title;
