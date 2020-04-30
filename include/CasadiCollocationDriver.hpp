@@ -326,11 +326,11 @@ private:
         double rV0 = V_ret(res["x"])[0].get_elements()[0];
 
         // Calculate the action
-        double action = std::pow((2.0 / (2.0 - d))*(rV0/rT0), -0.5*d)*((2.0*V0)/(2.0 - d));
+        double action = std::pow(((2.0 - d)/d)*(rT0/V0), 0.5*d)*((2.0*V0)/(2.0 - d));
 
         // Do the alternative calculation as a check
-        double lam_star2 = (d/(2.0 - d))*(rV0/rT0);
-        double action2 = std::pow((2.0 / (2.0 - d))*(rV0/rT0), 1.0 - 0.5*d)*((2.0*rT0)/d);
+        double lam_star2 = ((2.0 - d)/d)*(rT0/V0);
+        double action2 = std::pow(((2.0 - d)/d)*(rT0/V0), 0.5*d - 1)*((2.0*rT0)/d);
         std::cout << ">>> action 1: " << action << std::endl;
         std::cout << ">>> action 2: " << action2 << std::endl;
         std::cout << ">>> inferred lambda_star: " << lam_star2 << std::endl;
