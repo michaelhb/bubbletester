@@ -55,6 +55,9 @@ int main() {
     c_solver->set_verbose(true);
     BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << c_path.get_action() << std::endl;
+    std::cout << "Radii: " << c_path.get_radii() << std::endl;
+    std::cout << "Profiles: " << c_path.get_profiles() << std::endl;
+
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
     // bp_solver->set_verbose(true);

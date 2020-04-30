@@ -311,10 +311,10 @@ private:
         DMVector rPhi = Phi_ret(res["x"]);
         DMVector rU = U_ret(res["x"]);
 
-        Eigen::MatrixXd profiles(n_nodes + 1, n_phi);
+        Eigen::MatrixXd profiles(n_nodes, n_phi); // Exclude endpoint for now
         for (int c = 0; c < n_phi; c++) {
             std::vector<double> col = vertsplit(rPhi[0])[c].get_elements();
-            for (int r = 0; r <= n_nodes; ++r) {
+            for (int r = 0; r < n_nodes; ++r) { 
                 profiles(r, c) = col[r];
             }
         }
@@ -391,7 +391,12 @@ private:
         // std::cout << "w0:" << w0 << std::endl;
         // std::cout << "g: " << g << std::endl;
         // std::cout << "G: " << G << std::endl;
-        Eigen::VectorXd radii = Eigen::VectorXd::Zero(n_nodes + 1);
+        Eigen::VectorXd radii(collocation_points.size() - 1);
+        
+        for (int i = 0; i < collocation_points.size() - 1; ++i) {
+            radii(i) = Tr(collocation_points[i]);
+        }
+        std::cout << radii << std::endl;
         return BouncePath(radii, profiles, action);
     }
 
