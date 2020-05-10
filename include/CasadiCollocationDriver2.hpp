@@ -114,9 +114,6 @@ private:
         int d = 3;
 
         // Linear ansatz
-        // auto ansatz = [T, false_vac, true_vac](double t) {
-        //     return ((t/T)*false_vac + (1 - t/T)*true_vac).get_elements();
-        // };
         auto ansatz = [false_vac, true_vac](double t) {
             return (((t + 1)/2.0)*false_vac + (1.0 - (t + 1.0)/2.0)*true_vac).get_elements();
         };
@@ -128,7 +125,6 @@ private:
         tau_root.insert(tau_root.begin(), 0.);
 
         // Value of time at point t_k_j
-        // auto t_kj = [h, tau_root](int k, int j){return h*(k + tau_root[j]);};
         auto t_kj = [h_k, t_k, tau_root](int k, int j){return t_k[k] + h_k[k]*tau_root[j];};
 
         // Coefficients of the collocation equation
