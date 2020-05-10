@@ -17,6 +17,7 @@ find_package(Boost 1.53.0 REQUIRED
   filesystem
   program_options
   system
+  serialization
   )
 find_package(CLN 1.2.2 REQUIRED)
 find_package(Eigen3 3.1 REQUIRED)

@@ -24,7 +24,7 @@ int main() {
     // using namespace casadi;
     using namespace BubbleTester;
     using namespace std::chrono;
-    double delta = 0.4;
+    double delta = 0.1;
     casadi::Function fPotential = get_potential(delta);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
@@ -55,8 +55,9 @@ int main() {
     c_solver->set_verbose(true);
     BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << c_path.get_action() << std::endl;
-    std::cout << "Radii: " << c_path.get_radii() << std::endl;
-    std::cout << "Profiles: " << c_path.get_profiles() << std::endl;
+    // std::cout << "Radii: " << c_path.get_radii() << std::endl;
+    // std::cout << "Profiles: " << c_path.get_profiles() << std::endl;
+    c_path.plot_profiles(20., "Collocation Solver (unscaled)");
 
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
@@ -75,10 +76,10 @@ int main() {
     std::cout << "Action = " << sb_path.get_action() << std::endl;
     // std::cout << "Radii:" << std::endl << sb_path.get_radii() << std::endl;
     // std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
+    sb_path.plot_profiles(20., "SimpleBounce");
 
     // Combined plot
     std::ostringstream title;
     title << "Bounce path";
     potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c_path, sb_path});
-    
 }

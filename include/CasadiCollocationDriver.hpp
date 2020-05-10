@@ -4,6 +4,9 @@
 #include <exception>
 #include <cmath>
 #include <chrono>
+#include <iostream>
+#include <fstream>
+
 #include "CasadiCommon.hpp"
 #include "GenericBounceSolver.hpp"
 #include "GenericPotential.hpp"
@@ -18,9 +21,44 @@ public:
     CasadiCollocationSolver(int n_spatial_dimensions_, int n_nodes_) : 
         n_spatial_dimensions(n_spatial_dimensions_), n_nodes(n_nodes_) {
         if (!(0 < n_nodes <= 50)) {
-            
             throw std::invalid_argument("n_nodes must be between 1 and 50.");
         }
+
+        // Read in collocation frame from files (fix hardcoded paths later)
+        std::string prefix = "/home/michael/SciCodes/bubbletester/wls/frames/";
+        std::ostringstream fn_points, fn_weights, fn_d;
+        
+        fn_points << prefix << "points_" << n_nodes << ".tsv";
+        fn_weights << prefix << "weights_" << n_nodes << ".tsv";
+        fn_d << prefix << "d_" << n_nodes << ".tsv";
+
+        double dt;
+        std::ifstream ifs;
+
+        ifs = std::ifstream(fn_points.str());
+        while (ifs >> dt) {
+            collocation_points.push_back(dt);
+        }
+
+        ifs = std::ifstream(fn_weights.str());
+        while (ifs >> dt) {
+            collocation_weights.push_back(dt);
+        }
+
+        ifs = std::ifstream(fn_d.str());
+        for (int r = 0; r <= n_nodes; ++r) {
+            std::vector<double> Drow;
+            for (int c = 0; c <= n_nodes; ++c) {
+                ifs >> dt;
+                Drow.push_back(dt);
+            }
+            D.push_back(Drow);
+        }
+
+        // Append the endpoint (1) to the collocation points
+        // NB the weights are only used for integration, where the final
+        // point is ignored.
+        collocation_points.push_back(1.0);
     }
 
     BouncePath solve(
@@ -36,7 +74,7 @@ public:
             // Case 1: we are working with a CasadiPotential, 
             // so we want to use the Function instance. 
             const CasadiPotential &c_potential = dynamic_cast<const CasadiPotential &>(g_potential);
-            std::cout << "CasadiMaupertuisSolver: this is a CasadiPotential" << std::endl;
+            std::cout << "CasadiCollocationSolver: this is a CasadiPotential" << std::endl;
             Function potential = c_potential.get_function(); 
             return _solve(true_vacuum, false_vacuum, potential);
         }
@@ -44,7 +82,7 @@ public:
             // Case 2: we are not working with a CasadiPotential,
             // so we want to wrap it in a Callback and use finite 
             // differences to calculate derivatives.
-            std::cout << "CasadiMaupertuisSolver: this is not a CasadiPotential" << std::endl;
+            std::cout << "CasadiCollocationSolver: this is not a CasadiPotential" << std::endl;
             CasadiPotentialCallback cb(g_potential);
             Function potential = cb;
             return _solve(true_vacuum, false_vacuum, potential);
@@ -67,6 +105,9 @@ public:
 private:
     int n_spatial_dimensions;
     int n_nodes;
+    std::vector<double> collocation_points; 
+    std::vector<double> collocation_weights;
+    std::vector<std::vector<double>> D;
 
     //! Transformation from compact to semi infinite domain
     double Tr(double tau) const {
@@ -114,17 +155,9 @@ private:
         int n_phi = false_vac.size1();
         double d = get_n_spatial_dimensions();
 
-        std::vector<double> collocation_points = radau_points[n_nodes - 1];
-        std::vector<double> collocation_weights = radau_weights[n_nodes - 1];
-
-        // Append the endpoint (1) to the collocation points
-        // NB the weights are only used for integration, where the final
-        // point is ignored.
-        collocation_points.push_back(1.0);
-
-        // TEMP - hard coded ansatz parameters
-        double r0 = 2;
-        double sigma = .5;
+        // TEMP - hard coded ansatz parameters (r0 = 2., sigma=.5 good for delta = 0.4)
+        double r0 = 1.0;
+        double sigma = 1.0;
 
         // TEMP - hard coded volume factors
         double S_n;
@@ -201,17 +234,6 @@ private:
         for (int i = 0; i < P.size(); ++i) {
             Pder.push_back(P[i].diff(t, 1));
         }
-
-        std::vector<std::vector<double>> D;
-        
-        for (int r = 0; r <= n_nodes; ++r) {
-            std::vector<double> Drow;
-            for (int c = 0; c <= n_nodes; ++c) {
-                GiNaC::ex Dij = GiNaC::evalf(Pder[c].subs(t == collocation_points[r]));
-                Drow.push_back(GiNaC::ex_to<GiNaC::numeric>(Dij).to_double());
-            }
-            D.push_back(Drow);
-        }
         
         /**** Build the constraint functional ****/
         SX V = 0;
@@ -275,6 +297,7 @@ private:
 
         // Potential constraint
         g.push_back(V0 - V);
+        // g.push_back(V + .5);
         lbg.push_back(0);
         ubg.push_back(0);
         
@@ -326,11 +349,11 @@ private:
         double rV0 = V_ret(res["x"])[0].get_elements()[0];
 
         // Calculate the action
-        double action = std::pow(((2.0 - d)/d)*(rT0/V0), 0.5*d)*((2.0*V0)/(2.0 - d));
+        double action = std::pow(((2.0 - d)/d)*(rT0/rV0), 0.5*d)*((2.0*rV0)/(2.0 - d));
 
         // Do the alternative calculation as a check
-        double lam_star2 = ((2.0 - d)/d)*(rT0/V0);
-        double action2 = std::pow(((2.0 - d)/d)*(rT0/V0), 0.5*d - 1)*((2.0*rT0)/d);
+        double lam_star2 = ((2.0 - d)/d)*(rT0/rV0);
+        double action2 = std::pow(((2.0 - d)/d)*(rT0/rV0), 0.5*d - 1)*((2.0*rT0)/d);
         std::cout << ">>> action 1: " << action << std::endl;
         std::cout << ">>> action 2: " << action2 << std::endl;
         std::cout << ">>> inferred lambda_star: " << lam_star2 << std::endl;
@@ -347,10 +370,10 @@ private:
         std::cout << "----" << std::endl;
         // TEMP
         // Check the dynamics constraints on the ansatz (should be all ~0)
-        // Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
-        // DMVector dynArg = {DM(Phi0), DM(U0)};
-        // DMVector dynVal = dynF(dynArg);
-        // std::cout << "dynF: " << std::endl << dynVal << std::endl;
+        Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
+        DMVector dynArg1 = {DM(Phi0), DM(U0)};
+        DMVector dynVal1 = dynF(dynArg1);
+        std::cout << "dynF (ansatz): " << std::endl << dynVal1 << std::endl;
 
         // Check the derivative estimates 
         // Function derF = Function("derF", {vertcat(Phi)}, {vertcat(dphi)});
@@ -396,7 +419,6 @@ private:
         for (int i = 0; i < collocation_points.size() - 1; ++i) {
             radii(i) = Tr(collocation_points[i]);
         }
-        std::cout << radii << std::endl;
         return BouncePath(radii, profiles, action);
     }
 

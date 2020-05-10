@@ -2,13 +2,36 @@
 #define BUBBLETESTER_CASADICOMMON_HPP_INCLUDED
 #include <vector>
 #include <sstream>
-// #include <rpeval.hpp>
 #include <ginac/ginac.h>
-
+#include <casadi/casadi.hpp>
+#include <Eigen/Core>
+#include <boost/serialization/vector.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp> 
 
 // Various utilities / constants for the casadi drivers
 
 namespace BubbleTester {
+
+//! Serializable class to represent LGR collocation frame data for fixed n
+class LGRFrame {
+public:     
+    LGRFrame(int n_nodes) {
+        assert(n_nodes > 0);
+    }
+
+    template<class Archive> void serialize(Archive & ar, const unsigned int vers) {
+        ar & collocation_points;
+        ar & collocation_weights;
+        ar & D;
+    }
+
+private:
+    friend class boost::serialization::access;
+    std::vector<double> collocation_points;
+    std::vector<double> collocation_weights;
+    std::vector<std::vector<double>> D;
+};
 
 std::string varname(std::string prefix, std::vector<int> indices) {
     std::ostringstream ss;
@@ -57,35 +80,6 @@ std::vector<GiNaC::ex> lagrange_basis(GiNaC::symbol t, std::vector<double> collo
 
     return res;
 }
-
-// struct peval_results {
-//     double y;
-//     double err_abs;
-//     double err_frac;
-// };
-
-// peval_results poly_eval(std::vector<double> c, double t) {
-//     using namespace cxsc;
-//     int n = c.size() - 1;
-//     cxsc::real y;
-//     interval yy;
-//     int n_eval, err;
-//     peval_results res;
-//     double sup, inf;
-
-//     RPolynomial p(n);
-//     for (int i = 0; i <= n; ++i) {
-//         p[i] = c[i];
-//     }
-    
-//     RPolyEval(p, t, y, yy, n_eval, err);
-//     sup = _double(Sup(yy));
-//     inf = _double(Inf(yy));
-//     res.err_abs = sup - inf;
-//     res.err_frac = (sup - inf) / (0.5*(sup + inf));
-//     res.y = _double(y);
-//     return res;
-// }
 
 // Radau collocation points and weights on [-1,1] for n = 1...50.
 // Calculated in Mathematica, following https://mathworld.wolfram.com/RadauQuadrature.html

@@ -93,6 +93,9 @@ public:
                 }
             }
 
+            // TEMP
+            bounce.printBounceDetails();
+
             double action = bounce.action();
 
             delete model;
