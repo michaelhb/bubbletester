@@ -110,9 +110,6 @@ private:
             h_k.push_back(h);
         }
 
-        // TEMP
-        double H = 2.0/N;
-
         // Degree of interpolating polynomials
         int d = 3;
 
@@ -124,7 +121,7 @@ private:
             return (((t + 1)/2.0)*false_vac + (1.0 - (t + 1.0)/2.0)*true_vac).get_elements();
         };
         // Derivative of ansatz is a constant
-        std::vector<double> phidot_ansatz = (1*(false_vac - true_vac)).get_elements();
+        std::vector<double> phidot_ansatz = (false_vac - true_vac).get_elements();
 
         // Set up the collocation points
         std::vector<double> tau_root = collocation_points(d, "legendre");
@@ -186,10 +183,10 @@ private:
         std::vector<double> lbinf(n_phi, -inf);
 
         /**** Initialise parameter variables ****/
-        // SXVector h_par;
-        // for (int i = 0; i < N; ++i) {
-        //     h_par.push_back(SX::sym(varname("h", {i})));
-        // }
+        SXVector h_par;
+        for (int i = 0; i < N; ++i) {
+            h_par.push_back(SX::sym(varname("h", {i})));
+        }
 
         /**** Initialise control variables ****/
         std::vector<SX> controls = {}; 
@@ -257,7 +254,7 @@ private:
         }        
 
         // Width of control interval
-        // SX h_elem = SX::sym("h_elem");
+        SX h_elem = SX::sym("h_elem");
         
         // Estimate for the state at end of control interval
         SX phi_end = 0;
@@ -287,13 +284,13 @@ private:
             for (int r = 0; r <= d; ++r) {
                 phidot_approx += C[r][j]*element[r];
             }
-            phidot_cons.push_back(H*control_int[j - 1] - phidot_approx);
+            phidot_cons.push_back(h_elem*control_int[j - 1] - phidot_approx);
         }
         
         SXVector phidot_inputs = SXVector(element);
         phidot_inputs.push_back(control_start);
         phidot_inputs.push_back(control_end);
-        // phidot_inputs.push_back(h_elem);
+        phidot_inputs.push_back(h_elem);
 
         Function Phidot_cons = Function("Phidot_cons", phidot_inputs, phidot_cons);
 
@@ -303,7 +300,7 @@ private:
         for (int j = 1; j <= d; ++j) {
             SX dL = sqrt(2*SX::abs(SX::minus(
                 potential(element[j])[0], v_true)))*norm_2(control_int[j - 1]);
-            j_k = j_k + B[j]*dL*H;
+            j_k = j_k + B[j]*dL*h_elem;
         }
 
         Function J_k = Function("J_k", phidot_inputs, {j_k});
@@ -328,7 +325,7 @@ private:
             SXVector phidot_inputs_ = SXVector(element_states[k]);
             phidot_inputs_.push_back(controls[k]);
             phidot_inputs_.push_back(controls[k + 1]);
-            // phidot_inputs_.push_back(h_par[k]);
+            phidot_inputs_.push_back(h_par[k]);
             g.push_back(SX::vertcat(Phidot_cons(phidot_inputs_)));
             append_d(lbg, zeroes_col);
             append_d(ubg, zeroes_col);
@@ -341,15 +338,10 @@ private:
         // Collect states and constraints into single vectors
         SX W = SX::vertcat(w);
         SX G = SX::vertcat(g);
-        // SX Par = SX::vertcat(h_par);
-
-        // std::cout << Par << std::endl;
-        std::cout << h_k << std::endl;
-        std::cout << t_k << std::endl;
+        SX Par = SX::vertcat(h_par);
 
         // Create the solver (this is one of the bottlenecks, so we time it)
-        // SXDict nlp = {{"f", J}, {"x", W}, {"g", G}, {"p", Par}};
-        SXDict nlp = {{"f", J}, {"x", W}, {"g", G}};
+        SXDict nlp = {{"f", J}, {"x", W}, {"g", G}, {"p", Par}};
         Dict nlp_opt = Dict();
         nlp_opt["expand"] = false;
 
@@ -360,8 +352,7 @@ private:
         std::cout << "CasadiMaupertuisSolver - setup took " << setup_duration << " sec" << std::endl;
 
         // Run the optimiser. This is the other bottleneck, so we time it too.
-        // DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}, {"p", h_k}};
-        DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}};
+        DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}, {"p", h_k}};
         auto t_solve_start = high_resolution_clock::now();
         DMDict res = solver(arg);
         auto t_solve_end = high_resolution_clock::now();
