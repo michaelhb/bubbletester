@@ -5,6 +5,7 @@
 #include "CasadiPotential.hpp"
 #include "CasadiMaupertuisDriver.hpp"
 #include "CasadiCollocationDriver.hpp"
+#include "CasadiCollocationDriver2.hpp"
 #include "BP1Driver.hpp"
 #include "SimpleBounceDriver.hpp"
 
@@ -51,13 +52,18 @@ int main() {
     // potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
 
     // Collocation Solver
-    std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(3, 50);
-    c_solver->set_verbose(true);
-    BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
-    std::cout << "Action = " << c_path.get_action() << std::endl;
+    // std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(3, 50);
+    // c_solver->set_verbose(true);
+    // BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
+    // std::cout << "Action = " << c_path.get_action() << std::endl;
     // std::cout << "Radii: " << c_path.get_radii() << std::endl;
     // std::cout << "Profiles: " << c_path.get_profiles() << std::endl;
-    c_path.plot_profiles(20., "Collocation Solver (unscaled)");
+    // c_path.plot_profiles(20., "Collocation Solver (unscaled)");
+
+    // Collocation Solver 2
+    std::shared_ptr<GenericBounceSolver> c2_solver = std::make_shared<CasadiCollocationSolver2>(2);
+    c2_solver->set_verbose(true);
+    BouncePath c2_path = c2_solver->solve(true_vacuum, origin, potential);
 
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
@@ -81,5 +87,5 @@ int main() {
     // Combined plot
     std::ostringstream title;
     title << "Bounce path";
-    potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c_path, sb_path});
+    potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c2_path, sb_path});
 }
