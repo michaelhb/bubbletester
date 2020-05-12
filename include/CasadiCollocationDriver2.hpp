@@ -78,6 +78,22 @@ public:
         return 1.0 / (Tr_dot(Tr_inv(rho)));
     }
 
+    //! Ansatz in semi-infinite coordinates
+    casadi::DM ansatz(double rho, casadi::DM true_vac, casadi::DM false_vac, 
+        double r0, double sigma) const {        
+        return true_vac + 0.5*(false_vac - true_vac)*(1 
+            + tanh((rho - r0) / sigma)
+            + exp(-rho)/(sigma*std::pow(cosh(r0/sigma),2)));
+    }
+
+    //! Derivative of ansatz in semi-infinite coordinates
+    casadi::DM ansatz_dot(double rho, casadi::DM true_vac, casadi::DM false_vac,
+        double r0, double sigma) const {
+        return ((false_vac - true_vac)/2.0)*(
+                1.0/(sigma*std::pow(cosh((rho-r0)/sigma), 2)) -
+                exp(-rho)/(sigma*std::pow(cosh(r0/sigma), 2)));
+    }
+
 private:
     int n_dims;
 
@@ -92,6 +108,33 @@ private:
 
         std::cout << "FALSE VAC: " << false_vac << std::endl;
         std::cout << "TRUE VAC: " << true_vac << std::endl;
+
+         // TEMP - hard coded ansatz parameters (r0 = 2., sigma=.5 good for delta = 0.4)
+        double r0 = 2.0;
+        double sigma = 0.5;
+
+        // TEMP - hard coded volume factors
+        double S_n;
+        if (n_dims == 3) {
+            S_n = 4*pi;
+        }
+        else if (n_dims == 4) {
+            S_n = 0.5*pi*pi;
+        }
+        else {
+            throw std::invalid_argument("Only d = 3 and d = 4 are currently supported.");
+        }
+        
+        // Kink ansatz
+        auto ansatz_tau = [this, true_vac, false_vac, r0, sigma](double tau) {
+            return ansatz(Tr(tau), true_vac, false_vac, r0, sigma).get_elements();
+        };
+
+        // Kink ansatz derivative
+        auto dansatz_dtau = [this, true_vac, false_vac, r0, sigma](double tau) {
+            return (ansatz_dot(Tr(tau),
+                true_vac, false_vac, r0, sigma)).get_elements();
+        };
 
         int n_phi = false_vac.size1();
         SX phi = SX::sym("phi", n_phi);
@@ -112,16 +155,6 @@ private:
 
         // Degree of interpolating polynomials
         int d = 3;
-
-        // TEMP - until ansatz implemented
-        double V0 = -1;
-
-        // Linear ansatz
-        auto ansatz = [false_vac, true_vac](double t) {
-            return (((t + 1)/2.0)*false_vac + (1.0 - (t + 1.0)/2.0)*true_vac).get_elements();
-        };
-        // Derivative of ansatz is a constant
-        std::vector<double> phidot_ansatz = (false_vac - true_vac).get_elements();
 
         // Set up the collocation points
         std::vector<double> tau_root = collocation_points(d, "legendre");
@@ -184,23 +217,15 @@ private:
         }
 
         // Begin constructing NLP
-        std::vector<SX> w = {}; // All decision variables
-        std::vector<double> w0 = {}; // Initial values for decision variables
-        std::vector<double> lbw = {}; // Lower bounds for decision variables
-        std::vector<double> ubw = {}; // Upper bounds for decision variables
-        std::vector<SX> g = {}; // All constraint functions
-        std::vector<double> lbg = {}; // Lower bounds for constraints
-        std::vector<double> ubg = {}; // Upper bounds for constraints
-        std::vector<SX> par = {}; // All parameter variables
-        SX T = 0; // Objective function
-        SX V = 0; // Integral constraint
+        SXVector Phi, U, h_par, par;
+        std::vector<double> Phi0, U0, lbPhi, ubPhi, lbU, ubU;
 
         // Limits for unbounded variables
         std::vector<double> ubinf(n_phi, inf);
         std::vector<double> lbinf(n_phi, -inf);
 
         /**** Initialise parameter variables ****/
-        SXVector h_par, gamma_par, gammadot_par;
+        SXVector gamma_par, gammadot_par;
         for (int i = 0; i < N; ++i) {
             SX h_par_ = SX::sym(varname("h", {i}));
             h_par.push_back(h_par_);
@@ -217,45 +242,46 @@ private:
             par.push_back(gammadot_par_);
         }
 
-        /**** Initialise control variables ****/
-        std::vector<SX> controls = {}; 
-        for (int k = 0; k < N + 1; ++k) {
+        /**** Initialise control variables ****/        
+
+        // Zero vector for constraint bounds
+        std::vector<double> zeroes(n_phi, 0);
+
+        // Derivative at origin fixed to zero
+        SX U_0_0 = SX::sym("U_0_0", n_phi);
+        U.push_back(U_0_0);
+        append_d(lbU, zeroes);
+        append_d(ubU, zeroes);
+        append_d(U0, zeroes);
+
+        for (int k = 1; k < N + 1; ++k) {
             SX Uk = SX::sym(varname("U", {k}), n_phi);
-            controls.push_back(Uk);
-            w.push_back(Uk);
-            append_d(lbw, lbinf);
-            append_d(ubw, ubinf);
-            append_d(w0, phidot_ansatz);
+            U.push_back(Uk);
+            append_d(lbU, lbinf);
+            append_d(ubU, ubinf);
+            append_d(U0, dansatz_dtau(t_kj(k,0)));
         }
 
         /**** Initialise state variables ****/
 
-        // Start with initial state fixed to true vacuum
-        SX phi_0_0 = SX::sym("phi_0_0", n_phi);
-        w.push_back(phi_0_0);
-        append_d(lbw, true_vac.get_elements());
-        append_d(ubw, true_vac.get_elements());
-        append_d(w0, true_vac.get_elements());
-
         // Free endpoint states
         std::vector<SX> endpoints;
-        endpoints.push_back(phi_0_0);
-        for (int k = 1; k < N; ++k) {
+        for (int k = 0; k < N; ++k) {
             SX phi_k_0 = SX::sym(varname("phi", {k, 0}), n_phi);
             endpoints.push_back(phi_k_0);
-            w.push_back(phi_k_0);
-            append_d(lbw, lbinf);
-            append_d(ubw, ubinf);
-            append_d(w0, ansatz(t_kj(k, 0)));
+            Phi.push_back(phi_k_0);
+            append_d(lbPhi, lbinf);
+            append_d(ubPhi, ubinf);
+            append_d(Phi0, ansatz_tau(t_kj(k, 0)));
         }
 
         // Final state, fixed to the false vacuum
         SX phi_N_0 = SX::sym("phi_N_0", n_phi);
         endpoints.push_back(phi_N_0);
-        w.push_back(phi_N_0);
-        append_d(lbw, false_vac.get_elements());
-        append_d(ubw, false_vac.get_elements());
-        append_d(w0, false_vac.get_elements());
+        Phi.push_back(phi_N_0);
+        append_d(lbPhi, false_vac.get_elements());
+        append_d(ubPhi, false_vac.get_elements());
+        append_d(Phi0, false_vac.get_elements());
 
         // Build finite elements (including left endpoints)
         std::vector<SXVector> element_states;
@@ -266,14 +292,15 @@ private:
             for (int j = 1; j <= d; ++j) {
                 SX phi_k_j = SX::sym(varname("phi", {k, j}), n_phi);
                 e_states.push_back(phi_k_j);
-                w.push_back(phi_k_j);
-                append_d(lbw, lbinf);
-                append_d(ubw, ubinf);
-                append_d(w0, ansatz(t_kj(k, j)));
+                Phi.push_back(phi_k_j);
+                append_d(lbPhi, lbinf);
+                append_d(ubPhi, ubinf);
+                append_d(Phi0, ansatz_tau(t_kj(k, j)));
             }
             element_plot.push_back(SX::horzcat(e_states));
             element_states.push_back(e_states);
         }
+        
         
         /**** Useful functions of the state and control variables ****/
 
@@ -335,7 +362,7 @@ private:
         SX T_k = 0;
 
         for (int j = 1; j <= d; ++j) {
-            T_k = T_k + 0.5*h_elem*B[j]*pow(gamma(j), n_dims - 1)
+            T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)
                 *gammadot(j)*dot(control_int[j - 1], control_int[j - 1]);
         }
         
@@ -354,15 +381,35 @@ private:
         SX V_k = 0;
 
         for (int j = 1; j <= d; ++j) {
-            V_k = V_k + h_elem*B[j]*pow(gamma(j), n_dims - 1)*gammadot(j)*potential(element[j])[0];
+            V_k = V_k + S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)*gammadot(j)*potential(element[j])[0];
         }
 
         Function V_cons_k = Function("V_cons_k", quadrature_inputs, {V_k});
 
+        /**** Concatenate decision variables ****/
+
+        SXVector w = {}; // All decision variables
+        std::vector<double> w0 = {}; // Initial values for decision variables
+        std::vector<double> lbw = {}; // Lower bounds for decision variables
+        std::vector<double> ubw = {}; // Upper bounds for decision variables      
+    
+        // State variables
+        w.insert(w.end(), Phi.begin(), Phi.end());
+        w0.insert(w0.end(), Phi0.begin(), Phi0.end());
+        lbw.insert(lbw.end(), lbPhi.begin(), lbPhi.end());
+        ubw.insert(ubw.end(), ubPhi.begin(), ubPhi.end());
+
+        // Control variables
+        w.insert(w.end(), U.begin(), U.end());
+        w0.insert(w0.end(), U0.begin(), U0.end());
+        lbw.insert(lbw.end(), lbU.begin(), lbU.end());
+        ubw.insert(ubw.end(), ubU.begin(), ubU.end());
+
         /**** Implement the objective and constraints ****/
 
-        // Zero vector for constraint bounds
-        std::vector<double> zeroes(n_phi, 0);
+        SXVector g = {}; // All constraints
+        std::vector<double> lbg = {}; // Lower bounds for constraints
+        std::vector<double> ubg = {}; // Upper bounds for constraints
 
         // Zero vector for collocation bounds
         std::vector<double> zeroes_col(d*n_phi, 0);
@@ -374,31 +421,48 @@ private:
             append_d(ubg, zeroes);
         }
 
+        // Build quadratures
+        SX T = 0; // Objective function
+        SX V = 0; // Integral constraint
+
+        for (int k = 0; k < N; ++k) {
+            SXVector quadrature_inputs_ = SXVector(element_states[k]);
+            quadrature_inputs_.push_back(U[k]);
+            quadrature_inputs_.push_back(U[k + 1]);
+            quadrature_inputs_.push_back(h_par[k]);
+            quadrature_inputs_.push_back(gamma_par[k]);
+            quadrature_inputs_.push_back(gammadot_par[k]);
+            T += T_obj_k(quadrature_inputs_)[0];
+            V += V_cons_k(quadrature_inputs_)[0];
+        }
+
         // Collocation equations and objective function
         for (int k = 0; k < N; ++k) {
             SXVector phidot_inputs_ = SXVector(element_states[k]);
-            phidot_inputs_.push_back(controls[k]);
-            phidot_inputs_.push_back(controls[k + 1]);
+            phidot_inputs_.push_back(U[k]);
+            phidot_inputs_.push_back(U[k + 1]);
             phidot_inputs_.push_back(h_par[k]);
             phidot_inputs_.push_back(gamma_par[k]);
-
             g.push_back(SX::vertcat(Phidot_cons(phidot_inputs_)));
             append_d(lbg, zeroes_col);
             append_d(ubg, zeroes_col);
         }
 
-        // Build quadratures
-        for (int k = 0; k < N; ++k) {
-            SXVector quadrature_inputs_ = SXVector(element_states[k]);
-            quadrature_inputs_.push_back(controls[k]);
-            quadrature_inputs_.push_back(controls[k + 1]);
-            quadrature_inputs_.push_back(h_par[k]);
-            quadrature_inputs_.push_back(gamma_par[k]);
-            quadrature_inputs_.push_back(gammadot_par[k]);
+        // Evaluate quadratures on ansatz
+        Function fT = Function("fT", {vertcat(U), vertcat(par)}, {T}, {"U", "par"}, {"T"});
+        DMDict argT;
+        argT["U"] = U0;
+        argT["par"] = par0;
+        double T0 = fT(argT).at("T").get_elements()[0];
 
-            T += T_obj_k(quadrature_inputs_)[0];
-            V += V_cons_k(quadrature_inputs_)[0];
-        }
+        Function fV = Function("fV", {vertcat(Phi), vertcat(par)}, {V}, {"Phi", "par"}, {"V"});
+        DMDict argV;
+        argV["Phi"] = Phi0;
+        argV["par"] = par0;
+        double V0 = fV(argV).at("V").get_elements()[0];
+
+        std::cout << "V(ansatz) = " << V0 << std::endl;
+        std::cout << "T(ansatz) = " << T0 << std::endl;
 
         // Add potential constraint
         g.push_back(V0 - V);
@@ -431,6 +495,21 @@ private:
         auto solve_duration = duration_cast<microseconds>(t_solve_end - t_solve_start).count() * 1e-6;
         std::cout << "CasadiMaupertuisSolver - optimisation took " << solve_duration << " sec" << std::endl;
 
+        // Evaluate the objective & constraint on the result
+        Function T_ret = Function("T_ret", {W, Par}, {T}, {"W", "Par"}, {"T"});
+        Function V_ret = Function("V_ret", {W, Par}, {V}, {"W", "Par"}, {"V"});
+        DMDict T_ret_arg;
+        T_ret_arg["W"] = res["x"];
+        T_ret_arg["Par"] = par0;
+        double Tret = T_ret(T_ret_arg).at("T").get_elements()[0];
+        double Vret = V_ret(T_ret_arg).at("V").get_elements()[0];
+
+        std::cout << "V(result) = " << Vret << std::endl;
+        std::cout << "T(result) = " << Tret << std::endl;
+        
+        // Calculate the action
+        double action = std::pow(((2.0 - d)/d)*(Tret/V0), 0.5*d)*((2.0*V0)/(2.0 - d));
+
         // Return the result (interpolated using the Lagrange representation)
         auto t_extract_start = high_resolution_clock::now(); 
         SX endpoints_plot = SX::horzcat(endpoints);
@@ -453,8 +532,7 @@ private:
         interpolation.conservativeResize(interpolation.rows() + 1, interpolation.cols());
         interpolation.row(interpolation.rows() - 1) = profiles.row(profiles.rows() - 1);
 
-        // Dummy action and radii for now.
-        double action = 0;
+        // Dummy radii for now
         Eigen::VectorXd radii = Eigen::VectorXd::Zero(points_per*N + 1);
         
         auto t_extract_end = high_resolution_clock::now();
