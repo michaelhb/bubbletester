@@ -255,13 +255,19 @@ private:
         append_d(ubU, zeroes);
         append_d(U0, dansatz_dtau(t_kj(0,0)));
 
-        for (int k = 1; k < N + 1; ++k) {
+        for (int k = 1; k < N; ++k) {
             SX Uk = SX::sym(varname("U", {k}), n_phi);
             U.push_back(Uk);
             append_d(lbU, lbinf);
             append_d(ubU, ubinf);
             append_d(U0, dansatz_dtau(t_kj(k,0)));
         }
+
+        SX U_N_0 = SX::sym("U_N_0", n_phi);
+        U.push_back(U_N_0);
+        append_d(lbU, zeroes);
+        append_d(ubU, zeroes);
+        append_d(U0, zeroes);
 
         /**** Initialise state variables ****/
 
@@ -361,8 +367,11 @@ private:
         SX T_k = 0;
 
         for (int j = 1; j <= d; ++j) {
-            T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)
-                *gammadot(j)*dot(control_int[j - 1], control_int[j - 1]);
+            // T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)
+            //     *gammadot(j)*dot(control_int[j - 1], control_int[j - 1]);
+            SX u = control_start;
+            T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(0), n_dims - 1)
+                *gammadot(0)*dot(u,u);
         }
         
         // SXVector quadrature_inputs = SXVector(element);
@@ -460,6 +469,7 @@ private:
         argV["par"] = par0;
         double V0 = fV(argV).at("V").get_elements()[0];
 
+        std::cout << std::setprecision(20);
         std::cout << "V(ansatz) = " << V0 << std::endl;
         std::cout << "T(ansatz) = " << T0 << std::endl;
 
@@ -529,7 +539,7 @@ private:
         int c = 0;
         for (int k = 0; k < N; ++k) {
             for (int j = 0; j <= d; ++j) {
-                radii(c) = t_kj(k, j);
+                radii(c) = Tr(t_kj(k, j));
                 c++;
             }
         }
