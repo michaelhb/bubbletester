@@ -351,7 +351,7 @@ private:
             for (int r = 0; r <= d; ++r) {
                 phidot_approx += C[r][j]*element[r];
             }
-            phidot_cons.push_back(h_elem*gamma(j)*control_int[j - 1] - phidot_approx);
+            phidot_cons.push_back(h_elem*gammadot(j)*control_int[j - 1] - phidot_approx);
         }
         
         SXVector phidot_inputs;
@@ -359,7 +359,7 @@ private:
         phidot_inputs.push_back(control_start);
         phidot_inputs.push_back(control_end);
         phidot_inputs.push_back(h_elem);
-        phidot_inputs.push_back(gamma);
+        phidot_inputs.push_back(gammadot);
         
         Function Phidot_cons = Function("Phidot_cons", phidot_inputs, phidot_cons);
 
@@ -450,7 +450,7 @@ private:
             phidot_inputs_.push_back(U[k]);
             phidot_inputs_.push_back(U[k + 1]);
             phidot_inputs_.push_back(h_par[k]);
-            phidot_inputs_.push_back(gamma_par[k]);
+            phidot_inputs_.push_back(gammadot_par[k]);
             g.push_back(SX::vertcat(Phidot_cons(phidot_inputs_)));
             append_d(lbg, zeroes_col);
             append_d(ubg, zeroes_col);
