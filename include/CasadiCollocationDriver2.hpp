@@ -255,7 +255,7 @@ private:
         append_d(ubU, zeroes);
         append_d(U0, dansatz_dtau(t_kj(0,0)));
 
-        for (int k = 1; k < N; ++k) {
+        for (int k = 1; k < N + 1; ++k) {
             SX Uk = SX::sym(varname("U", {k}), n_phi);
             U.push_back(Uk);
             append_d(lbU, lbinf);
@@ -263,11 +263,11 @@ private:
             append_d(U0, dansatz_dtau(t_kj(k,0)));
         }
 
-        SX U_N_0 = SX::sym("U_N_0", n_phi);
-        U.push_back(U_N_0);
-        append_d(lbU, zeroes);
-        append_d(ubU, zeroes);
-        append_d(U0, zeroes);
+        // SX U_N_0 = SX::sym("U_N_0", n_phi);
+        // U.push_back(U_N_0);
+        // append_d(lbU, zeroes);
+        // append_d(ubU, zeroes);
+        // append_d(U0, zeroes);
 
         /**** Initialise state variables ****/
 
