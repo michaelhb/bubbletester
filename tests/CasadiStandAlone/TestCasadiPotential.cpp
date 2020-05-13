@@ -52,10 +52,10 @@ int main() {
     // potential.plot_2d("CasADi thin wall limit", 200, true_vacuum, origin, 0.1, {mp_path});
 
     // Collocation Solver
-    // std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(3, 50);
-    // c_solver->set_verbose(true);
-    // BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
-    // std::cout << "Action = " << c_path.get_action() << std::endl;
+    std::shared_ptr<GenericBounceSolver> c_solver = std::make_shared<CasadiCollocationSolver>(3, 50);
+    c_solver->set_verbose(true);
+    BouncePath c_path = c_solver->solve(true_vacuum, origin, potential);
+    std::cout << "Action = " << c_path.get_action() << std::endl;
     // std::cout << "Radii: " << c_path.get_radii() << std::endl;
     // std::cout << "Profiles: " << c_path.get_profiles() << std::endl;
     // c_path.plot_profiles(20., "Collocation Solver (unscaled)");
@@ -65,7 +65,7 @@ int main() {
     c2_solver->set_verbose(true);
     BouncePath c2_path = c2_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << c2_path.get_action() << std::endl;
-    c2_path.plot_profiles(20., "Collocation Solver 2");
+    // c2_path.plot_profiles(20., "Collocation Solver 2");
 
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
@@ -76,18 +76,18 @@ int main() {
     // std::cout << "Radii:" << std::endl << bp_path.get_radii() << std::endl;
     // std::cout << "Profiles:" << std::endl << bp_path.get_profiles() << std::endl;
 
-    // SimpleBounce
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
-    sb_solver->set_verbose(true);
-    BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
-    // potential.plot_2d("SB Solution", 200, true_vacuum, origin, 0.1, {sb_path});
-    std::cout << "Action = " << sb_path.get_action() << std::endl;
-    // std::cout << "Radii:" << std::endl << sb_path.get_radii() << std::endl;
-    // std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
-    sb_path.plot_profiles(20., "SimpleBounce");
+    // // SimpleBounce
+    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
+    // sb_solver->set_verbose(true);
+    // BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
+    // // potential.plot_2d("SB Solution", 200, true_vacuum, origin, 0.1, {sb_path});
+    // std::cout << "Action = " << sb_path.get_action() << std::endl;
+    // // std::cout << "Radii:" << std::endl << sb_path.get_radii() << std::endl;
+    // // std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
+    // sb_path.plot_profiles(20., "SimpleBounce");
 
-    // Combined plot
+    // // Combined plot
     std::ostringstream title;
     title << "Bounce path";
-    potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c2_path, sb_path});
+    potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c2_path, c_path});
 }

@@ -153,6 +153,7 @@ private:
             h_k.push_back(h);
         }
 
+
         // Degree of interpolating polynomials
         int d = 3;
 
@@ -252,7 +253,7 @@ private:
         U.push_back(U_0_0);
         append_d(lbU, zeroes);
         append_d(ubU, zeroes);
-        append_d(U0, zeroes);
+        append_d(U0, dansatz_dtau(t_kj(0,0)));
 
         for (int k = 1; k < N + 1; ++k) {
             SX Uk = SX::sym(varname("U", {k}), n_phi);
@@ -301,7 +302,6 @@ private:
             element_states.push_back(e_states);
         }
         
-        
         /**** Useful functions of the state and control variables ****/
 
         // State variables in a given element
@@ -348,7 +348,6 @@ private:
             phidot_cons.push_back(h_elem*gamma(j)*control_int[j - 1] - phidot_approx);
         }
         
-        // SXVector phidot_inputs = SXVector(element);
         SXVector phidot_inputs;
         phidot_inputs.insert(phidot_inputs.end(), element.begin(), element.end());
         phidot_inputs.push_back(control_start);
@@ -525,15 +524,15 @@ private:
         Eigen::MatrixXd elementmx = 
             Eigen::Map<Eigen::MatrixXd>(
                 elements(res["x"]).at(0).get_elements().data(), n_phi, N*(d + 1)).transpose();
- 
-        int points_per = 10;
 
-        Eigen::MatrixXd interpolation = interpolate_elements(elementmx, P, N, n_phi, d, points_per);
-        interpolation.conservativeResize(interpolation.rows() + 1, interpolation.cols());
-        interpolation.row(interpolation.rows() - 1) = profiles.row(profiles.rows() - 1);
-
-        // Dummy radii for now
-        Eigen::VectorXd radii = Eigen::VectorXd::Zero(points_per*N + 1);
+        Eigen::VectorXd radii(N*(d + 1));
+        int c = 0;
+        for (int k = 0; k < N; ++k) {
+            for (int j = 0; j <= d; ++j) {
+                radii(c) = t_kj(k, j);
+                c++;
+            }
+        }
         
         auto t_extract_end = high_resolution_clock::now();
         auto extract_duration = duration_cast<microseconds>(t_extract_end - t_extract_start).count() * 1e-6;
@@ -541,34 +540,7 @@ private:
 
         std::cout << W.size() << std::endl;
 
-        return BouncePath(radii, interpolation, action);
-    }
-
-    Eigen::MatrixXd interpolate_elements(Eigen::MatrixXd elements, std::vector<casadi::Polynomial> P, int n_elem, int n_phi, int d, int points_per) const {
-        using namespace casadi;
-        
-        Eigen::MatrixXd interpolation(n_elem*points_per, n_phi);
-        
-        double dtau = 1.0/points_per;
-        Eigen::VectorXd tau(points_per);
-        for (int i = 0; i < points_per; ++i) {
-            tau(i) = i*dtau;
-        }
-
-        for (int k = 0; k < n_elem; ++k) {
-            for (int t = 0; t < points_per; ++t) {
-                double tau_t = tau(t);
-                Eigen::VectorXd x_k_t = Eigen::VectorXd::Zero(n_phi);
-
-                for (int r = 0; r <= d; ++r) {
-                    Eigen::VectorXd x_kr = elements.row(k*(d + 1) + r);
-                    x_k_t += P[r](tau_t)*x_kr;
-                }
-                interpolation.row(k*points_per + t) = x_k_t;
-            }
-        }
-        
-        return interpolation;
+        return BouncePath(radii, elementmx, action);
     }
 };
 
