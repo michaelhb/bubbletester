@@ -367,11 +367,8 @@ private:
         SX T_k = 0;
 
         for (int j = 1; j <= d; ++j) {
-            // T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)
-            //     *gammadot(j)*dot(control_int[j - 1], control_int[j - 1]);
-            SX u = control_start;
-            T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(0), n_dims - 1)
-                *gammadot(0)*dot(u,u);
+            T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)
+                *gammadot(j)*dot(control_int[j - 1], control_int[j - 1]);
         }
         
         // SXVector quadrature_inputs = SXVector(element);
