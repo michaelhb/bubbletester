@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <chrono>
+#include <exception>
 #include <casadi/casadi.hpp>
 
 #include "GenericBounceSolver.hpp"
@@ -13,9 +14,17 @@
 
 namespace BubbleTester {
 
+struct Ansatz {
+    double V0;
+    std::vector<double> Phi0;
+    std::vector<double> U0;
+};
+
 class CasadiCollocationSolver2 : public GenericBounceSolver {
 public:
-    CasadiCollocationSolver2(int n_spatial_dimensions_) : n_dims(n_spatial_dimensions_) {
+    CasadiCollocationSolver2(int n_spatial_dimensions_, int N_) : n_dims(n_spatial_dimensions_), N(N_), d(3) {
+        tau_root = casadi::collocation_points(d, "legendre");
+        tau_root.insert(tau_root.begin(), 0.);
     }
 
     BouncePath solve(
@@ -58,6 +67,22 @@ public:
         // Do nothing for now
     }
 
+private:
+    int n_dims; // Number of spatial dimensions
+    int N; // Number of finite elements
+    int d; // Degree of interpolating polynomials
+
+    mutable std::vector<double> t_k; // Element start times
+    mutable std::vector<double> h_k; // Element widths
+
+    // Vector of collocation points on [0,1)
+    std::vector<double> tau_root;
+
+    // Time at element k, collocation point j
+    double t_kj(int k, int j) const {
+        return t_k[k] + h_k[k]*tau_root[j];
+    }
+
     //! Transformation from compact to semi infinite domain
     double Tr(double tau) const {
         return (1.0 + tau) / (1.0 - tau);
@@ -94,9 +119,66 @@ public:
                 exp(-rho)/(sigma*std::pow(cosh(r0/sigma), 2)));
     }
 
-private:
-    int n_dims;
+    Ansatz get_ansatz(casadi::Function fV, 
+        std::vector<double> par0, casadi::DM true_vac, casadi::DM false_vac) const {
+        Ansatz a;
+        double sigma = 1.;
+        double dsigma = 0.01;
+        double r0 = 1.5;
+        double r0_max = 100.;
+        double V0 = 1.;
 
+        std::vector<double> Phi0, U0;
+        Phi0.reserve((N*(n_dims + 1) + 1));
+        U0.reserve(N + 1);
+
+        casadi::DMDict argV;
+        argV["par"] = par0;
+
+        while (V0 > 0) {
+            Phi0.clear();
+
+            if (sigma < 0) {
+                throw std::runtime_error("Could not find V0 < 0");
+            }
+
+            // Endpoints
+            for (int k = 0; k <= N; ++k) {
+                append_d(Phi0, ansatz(
+                    Tr(t_kj(k, 0)), true_vac, false_vac, r0, sigma).get_elements());
+            }
+
+            // Collocation points
+            for (int k = 0; k < N; ++k) {
+                for (int j = 1; j <= d; ++j) {
+                    append_d(Phi0, ansatz(
+                        Tr(t_kj(k, j)), true_vac, false_vac, r0, sigma ).get_elements());
+                }
+            }
+
+            argV["Phi"] = Phi0;
+            V0 = fV(argV).at("V").get_elements()[0];
+            
+            // TEMP
+            std::cout << "sigma = " << sigma << ", r0 " << r0 << ", V0 = " << V0 << std::endl;
+
+            sigma -= dsigma;
+        }
+
+        // Calculate the derivatives
+        for (int k = 0; k < N; ++k) {
+            append_d(U0, ansatz_dot(
+                Tr(t_kj(k,0)), true_vac, false_vac, r0, sigma ).get_elements());
+        }
+        // Avoid Tr(1) singularity
+        append_d(U0, std::vector<double>(false_vac.size1(), 0));
+
+        a.Phi0 = Phi0;
+        a.U0 = U0;
+        a.V0 = V0;
+        return a;
+    }
+    
     BouncePath _solve(const Eigen::VectorXd& true_vacuum, 
                       const Eigen::VectorXd& false_vacuum,
                       casadi::Function potential) const {
@@ -110,8 +192,8 @@ private:
         std::cout << "TRUE VAC: " << true_vac << std::endl;
 
          // TEMP - hard coded ansatz parameters (r0 = 2., sigma=.5 good for delta = 0.4)
-        double r0 = 2.0;
-        double sigma = 0.5;
+        double r0 = 4;
+        double sigma = 2;
 
         // TEMP - hard coded volume factors
         double S_n;
@@ -124,17 +206,6 @@ private:
         else {
             throw std::invalid_argument("Only d = 3 and d = 4 are currently supported.");
         }
-        
-        // Kink ansatz
-        auto ansatz_tau = [this, true_vac, false_vac, r0, sigma](double tau) {
-            return ansatz(Tr(tau), true_vac, false_vac, r0, sigma).get_elements();
-        };
-
-        // Kink ansatz derivative
-        auto dansatz_dtau = [this, true_vac, false_vac, r0, sigma](double tau) {
-            return (ansatz_dot(Tr(tau),
-                true_vac, false_vac, r0, sigma)).get_elements();
-        };
 
         int n_phi = false_vac.size1();
         SX phi = SX::sym("phi", n_phi);
@@ -143,26 +214,12 @@ private:
         DM v_true = potential(true_vac);
         
         // Control intervals and spacing (evenly spaced for now)
-        int N = 50;
-        std::vector<double> t_k;
-        std::vector<double> h_k;
         for (int i = 0; i < N; ++i) {
             double t = -1.0 + 2.0*i / N;
             double h = 2.0/N;
             t_k.push_back(t);
             h_k.push_back(h);
         }
-
-
-        // Degree of interpolating polynomials
-        int d = 3;
-
-        // Set up the collocation points
-        std::vector<double> tau_root = collocation_points(d, "legendre");
-        tau_root.insert(tau_root.begin(), 0.);
-
-        // Value of time at point t_k_j
-        auto t_kj = [h_k, t_k, tau_root](int k, int j){return t_k[k] + h_k[k]*tau_root[j];};
 
         // Build vector of parametric inputs (h_k, gamma, gamma_dot)
         std::vector<double> par0;
@@ -219,7 +276,7 @@ private:
 
         // Begin constructing NLP
         SXVector Phi, U, h_par, par;
-        std::vector<double> Phi0, U0, lbPhi, ubPhi, lbU, ubU;
+        std::vector<double> lbPhi, ubPhi, lbU, ubU;
 
         // Limits for unbounded variables
         std::vector<double> ubinf(n_phi, inf);
@@ -253,14 +310,12 @@ private:
         U.push_back(U_0_0);
         append_d(lbU, zeroes);
         append_d(ubU, zeroes);
-        append_d(U0, dansatz_dtau(t_kj(0,0)));
 
         for (int k = 1; k < N; ++k) {
             SX Uk = SX::sym(varname("U", {k}), n_phi);
             U.push_back(Uk);
             append_d(lbU, lbinf);
             append_d(ubU, ubinf);
-            append_d(U0, dansatz_dtau(t_kj(k,0)));
         }
 
         // Need to avoid Tr(1) singularity
@@ -268,7 +323,6 @@ private:
         U.push_back(U_N_0);
         append_d(lbU, lbinf);
         append_d(ubU, ubinf);
-        append_d(U0, false_vac.get_elements());
 
         /**** Initialise state variables ****/
 
@@ -280,7 +334,6 @@ private:
             Phi.push_back(phi_k_0);
             append_d(lbPhi, lbinf);
             append_d(ubPhi, ubinf);
-            append_d(Phi0, ansatz_tau(t_kj(k, 0)));
         }
 
         // Final state, fixed to the false vacuum
@@ -289,7 +342,6 @@ private:
         Phi.push_back(phi_N_0);
         append_d(lbPhi, false_vac.get_elements());
         append_d(ubPhi, false_vac.get_elements());
-        append_d(Phi0, false_vac.get_elements());
 
         // Build finite elements (including left endpoints)
         std::vector<SXVector> element_states;
@@ -303,7 +355,6 @@ private:
                 Phi.push_back(phi_k_j);
                 append_d(lbPhi, lbinf);
                 append_d(ubPhi, ubinf);
-                append_d(Phi0, ansatz_tau(t_kj(k, j)));
             }
             element_plot.push_back(SX::horzcat(e_states));
             element_states.push_back(e_states);
@@ -372,7 +423,6 @@ private:
                 *gammadot(j)*dot(control_int[j - 1], control_int[j - 1]);
         }
         
-        // SXVector quadrature_inputs = SXVector(element);
         SXVector quadrature_inputs;
         quadrature_inputs.insert(quadrature_inputs.end(), element.begin(), element.end());
         quadrature_inputs.push_back(control_start);
@@ -391,25 +441,6 @@ private:
         }
 
         Function V_cons_k = Function("V_cons_k", quadrature_inputs, {V_k});
-
-        /**** Concatenate decision variables ****/
-
-        SXVector w = {}; // All decision variables
-        std::vector<double> w0 = {}; // Initial values for decision variables
-        std::vector<double> lbw = {}; // Lower bounds for decision variables
-        std::vector<double> ubw = {}; // Upper bounds for decision variables      
-    
-        // State variables
-        w.insert(w.end(), Phi.begin(), Phi.end());
-        w0.insert(w0.end(), Phi0.begin(), Phi0.end());
-        lbw.insert(lbw.end(), lbPhi.begin(), lbPhi.end());
-        ubw.insert(ubw.end(), ubPhi.begin(), ubPhi.end());
-
-        // Control variables
-        w.insert(w.end(), U.begin(), U.end());
-        w0.insert(w0.end(), U0.begin(), U0.end());
-        lbw.insert(lbw.end(), lbU.begin(), lbU.end());
-        ubw.insert(ubw.end(), ubU.begin(), ubU.end());
 
         /**** Implement the objective and constraints ****/
 
@@ -454,16 +485,38 @@ private:
             append_d(ubg, zeroes_col);
         }
 
+        /**** Calculate the ansatz ****/
+        Function fV = Function("fV", {vertcat(Phi), vertcat(par)}, {V}, {"Phi", "par"}, {"V"});
+        Ansatz a = get_ansatz(fV, par0, true_vac, false_vac);
+
+        /**** Concatenate decision variables ****/
+
+        SXVector w = {}; // All decision variables
+        std::vector<double> w0 = {}; // Initial values for decision variables
+        std::vector<double> lbw = {}; // Lower bounds for decision variables
+        std::vector<double> ubw = {}; // Upper bounds for decision variables      
+    
+        // State variables
+        w.insert(w.end(), Phi.begin(), Phi.end());
+        w0.insert(w0.end(), a.Phi0.begin(), a.Phi0.end());
+        lbw.insert(lbw.end(), lbPhi.begin(), lbPhi.end());
+        ubw.insert(ubw.end(), ubPhi.begin(), ubPhi.end());
+
+        // Control variables
+        w.insert(w.end(), U.begin(), U.end());
+        w0.insert(w0.end(), a.U0.begin(), a.U0.end());
+        lbw.insert(lbw.end(), lbU.begin(), lbU.end());
+        ubw.insert(ubw.end(), ubU.begin(), ubU.end());
+
         // Evaluate quadratures on ansatz
         Function fT = Function("fT", {vertcat(U), vertcat(par)}, {T}, {"U", "par"}, {"T"});
         DMDict argT;
-        argT["U"] = U0;
+        argT["U"] = a.U0;
         argT["par"] = par0;
         double T0 = fT(argT).at("T").get_elements()[0];
 
-        Function fV = Function("fV", {vertcat(Phi), vertcat(par)}, {V}, {"Phi", "par"}, {"V"});
         DMDict argV;
-        argV["Phi"] = Phi0;
+        argV["Phi"] = a.Phi0;
         argV["par"] = par0;
         double V0 = fV(argV).at("V").get_elements()[0];
 
@@ -487,6 +540,8 @@ private:
         SXDict nlp = {{"f", T}, {"x", W}, {"g", G}, {"p", Par}};
         Dict nlp_opt = Dict();
         nlp_opt["expand"] = false;
+        nlp_opt["ipopt.tol"] = 1e-3;
+        nlp_opt["ipopt.constr_viol_tol"] = 1e-3;
 
         auto t_setup_start = high_resolution_clock::now();
         Function solver = nlpsol("nlpsol", "ipopt", nlp, nlp_opt);

@@ -25,7 +25,7 @@ int main() {
     // using namespace casadi;
     using namespace BubbleTester;
     using namespace std::chrono;
-    double delta = 0.4;
+    double delta = 0.05;
     casadi::Function fPotential = get_potential(delta);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
@@ -61,7 +61,7 @@ int main() {
     // c_path.plot_profiles(20., "Collocation Solver (unscaled)");
 
     // Collocation Solver 2
-    std::shared_ptr<GenericBounceSolver> c2_solver = std::make_shared<CasadiCollocationSolver2>(3);
+    std::shared_ptr<GenericBounceSolver> c2_solver = std::make_shared<CasadiCollocationSolver2>(3, 50);
     c2_solver->set_verbose(true);
     BouncePath c2_path = c2_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << c2_path.get_action() << std::endl;
@@ -77,17 +77,17 @@ int main() {
     // std::cout << "Profiles:" << std::endl << bp_path.get_profiles() << std::endl;
 
     // // SimpleBounce
-    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(1., 100., 3);
-    sb_solver->set_verbose(true);
-    BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
+    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(150., 100., 3);
+    // sb_solver->set_verbose(true);
+    // BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
     // potential.plot_2d("SB Solution", 200, true_vacuum, origin, 0.1, {sb_path});
-    std::cout << "Action = " << sb_path.get_action() << std::endl;
+    // std::cout << "Action = " << sb_path.get_action() << std::endl;
     // // std::cout << "Radii:" << std::endl << sb_path.get_radii() << std::endl;
     // // std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
-    sb_path.plot_profiles(20., "SimpleBounce");
+    // sb_path.plot_profiles(150., "SimpleBounce");
 
     // // Combined plot
-    std::ostringstream title;
-    title << "Bounce path";
-    potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c2_path, sb_path});
+    // std::ostringstream title;
+    // title << "Bounce path";
+    // potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c2_path, sb_path});
 }
