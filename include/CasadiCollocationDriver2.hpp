@@ -121,26 +121,25 @@ private:
 
     Ansatz get_ansatz(casadi::Function fV, 
         std::vector<double> par0, casadi::DM true_vac, casadi::DM false_vac) const {
-        Ansatz a;
-        double sigma = 1.;
-        double dsigma = 0.01;
-        double r0 = 1.5;
-        double r0_max = 100.;
-        double V0 = 1.;
 
+        Ansatz a;
         std::vector<double> Phi0, U0;
         Phi0.reserve((N*(n_dims + 1) + 1));
         U0.reserve(N + 1);
-
         casadi::DMDict argV;
         argV["par"] = par0;
 
-        while (V0 > 0) {
+        double r0 = 2.5;
+        double targetV = -1;
+        double tol = 1e-3;
+        double sig_upper = 6.;
+        double sig_lower = 0.;
+        double sigma = 0.5*(sig_upper + sig_lower);
+        double sigma_cache = sigma;
+        double V_mid;
+        
+        do {
             Phi0.clear();
-
-            if (sigma < 0) {
-                throw std::runtime_error("Could not find V0 < 0");
-            }
 
             // Endpoints
             for (int k = 0; k <= N; ++k) {
@@ -157,25 +156,34 @@ private:
             }
 
             argV["Phi"] = Phi0;
-            V0 = fV(argV).at("V").get_elements()[0];
-            
-            // TEMP
-            std::cout << "sigma = " << sigma << ", r0 " << r0 << ", V0 = " << V0 << std::endl;
+            V_mid = fV(argV).at("V").get_elements()[0];
 
-            sigma -= dsigma;
+            std::cout << "r0 = " << r0 << ", sigma = " << sigma 
+                      << ", V_mid = " << V_mid << std::endl; 
+
+            if (V_mid < targetV) {
+                sig_lower  = sigma;
+            }
+            else if (V_mid > targetV) {
+                sig_upper = sigma;
+            }
+            sigma_cache = sigma;
+            sigma = 0.5*(sig_lower + sig_upper);
         }
+        while (std::abs(V_mid - targetV) > tol);
 
         // Calculate the derivatives
         for (int k = 0; k < N; ++k) {
             append_d(U0, ansatz_dot(
-                Tr(t_kj(k,0)), true_vac, false_vac, r0, sigma ).get_elements());
+                Tr(t_kj(k,0)), true_vac, false_vac, r0, sigma_cache).get_elements());
         }
+
         // Avoid Tr(1) singularity
         append_d(U0, std::vector<double>(false_vac.size1(), 0));
 
         a.Phi0 = Phi0;
         a.U0 = U0;
-        a.V0 = V0;
+        a.V0 = V_mid;
         return a;
     }
     
@@ -570,7 +578,7 @@ private:
         std::cout << "T(result) = " << Tret << std::endl;
         
         // Calculate the action
-        double action = std::pow(((2.0 - d)/d)*(Tret/V0), 0.5*d)*((2.0*V0)/(2.0 - d));
+        double action = std::pow(((2.0 - d)/d)*(Tret/Vret), 0.5*d)*((2.0*Vret)/(2.0 - d));
 
         // Return the result (interpolated using the Lagrange representation)
         auto t_extract_start = high_resolution_clock::now(); 

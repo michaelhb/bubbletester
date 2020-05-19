@@ -25,7 +25,7 @@ int main() {
     // using namespace casadi;
     using namespace BubbleTester;
     using namespace std::chrono;
-    double delta = 0.05;
+    double delta = 0.1;
     casadi::Function fPotential = get_potential(delta);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
@@ -65,7 +65,7 @@ int main() {
     c2_solver->set_verbose(true);
     BouncePath c2_path = c2_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << c2_path.get_action() << std::endl;
-    c2_path.plot_profiles(20., "Collocation Solver 2");
+    c2_path.plot_profiles(5., "Collocation Solver 2");
 
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
