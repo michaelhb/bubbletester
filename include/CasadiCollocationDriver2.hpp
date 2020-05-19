@@ -4,6 +4,7 @@
 #include <memory>
 #include <chrono>
 #include <exception>
+#include <math.h> 
 #include <casadi/casadi.hpp>
 
 #include "GenericBounceSolver.hpp"
@@ -71,6 +72,7 @@ private:
     int n_dims; // Number of spatial dimensions
     int N; // Number of finite elements
     int d; // Degree of interpolating polynomials
+    double grid_scale = 1.8;
 
     mutable std::vector<double> t_k; // Element start times
     mutable std::vector<double> h_k; // Element widths
@@ -85,23 +87,23 @@ private:
 
     //! Transformation from compact to semi infinite domain
     double Tr(double tau) const {
-        return (1.0 + tau) / (1.0 - tau);
+        return grid_scale*log(2.0/(1.0 - tau));
     }
 
     //! Derivative of monotonic transformation
     double Tr_dot(double tau) const {
-        return 2.0 / std::pow(tau - 1, 2);
+        return grid_scale / (1.0 - tau);
     }
 
-    // //! Inverse of monotonic transformation
-    double Tr_inv(double rho) const {
-        return (rho - 1.0) / (rho + 1.0);
-    }
+    // //! Transformation from compact to semi infinite domain
+    // double Tr(double tau) const {
+    //     return (1.0 + tau) / (1.0 - tau);
+    // }
 
-    //! Derivative of inverse monotonic transformation
-    double Tr_inv_dot(double rho) const {
-        return 1.0 / (Tr_dot(Tr_inv(rho)));
-    }
+    // //! Derivative of monotonic transformation
+    // double Tr_dot(double tau) const {
+    //     return 2.0 / std::pow(tau - 1, 2);
+    // }
 
     //! Ansatz in semi-infinite coordinates
     casadi::DM ansatz(double rho, casadi::DM true_vac, casadi::DM false_vac, 
@@ -129,11 +131,15 @@ private:
         casadi::DMDict argV;
         argV["par"] = par0;
 
-        double r0 = 2.5;
+        double r0 = 0.5;
+        double delta_r0 = 0.1;
+        double r0_max = 10.;
         double targetV = -1;
         double tol = 1e-3;
-        double sig_upper = 6.;
+        double sig_upper0 = 3.;
+        double sig_upper = sig_upper0;
         double sig_lower = 0.;
+        double sigma_min = 0.1;
         double sigma = 0.5*(sig_upper + sig_lower);
         double sigma_cache = sigma;
         double V_mid;
@@ -169,6 +175,19 @@ private:
             }
             sigma_cache = sigma;
             sigma = 0.5*(sig_lower + sig_upper);
+            
+            if (sigma < sigma_min) {
+                std::cout << "Increasing radius by " << delta_r0 << std::endl;
+                r0 += delta_r0;
+                sig_upper = sig_upper0;
+                sig_lower = 0;
+                sigma = 0.5*(sig_lower + sig_upper);
+                V_mid = 1; // Make sure we loop again
+
+                if (r0 > r0_max) {
+                    throw std::runtime_error("Exceeded maximum radius!");
+                }
+            }
         }
         while (std::abs(V_mid - targetV) > tol);
 
@@ -198,10 +217,6 @@ private:
 
         std::cout << "FALSE VAC: " << false_vac << std::endl;
         std::cout << "TRUE VAC: " << true_vac << std::endl;
-
-         // TEMP - hard coded ansatz parameters (r0 = 2., sigma=.5 good for delta = 0.4)
-        double r0 = 4;
-        double sigma = 2;
 
         // TEMP - hard coded volume factors
         double S_n;
