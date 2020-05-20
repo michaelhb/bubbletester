@@ -594,15 +594,9 @@ private:
 
         // Return the result (interpolated using the Lagrange representation)
         auto t_extract_start = high_resolution_clock::now(); 
-        SX endpoints_plot = SX::horzcat(endpoints);
         SX elements_plot = SX::horzcat(element_plot);
 
-        Function trajectories = Function("trajectories", {W}, {endpoints_plot});
         Function elements = Function("elements", {W}, {elements_plot});
-
-        Eigen::MatrixXd profiles = 
-            Eigen::Map<Eigen::MatrixXd>(
-                trajectories(res["x"]).at(0).get_elements().data(), n_phi, N + 1).transpose();
 
         Eigen::MatrixXd elementmx = 
             Eigen::Map<Eigen::MatrixXd>(
