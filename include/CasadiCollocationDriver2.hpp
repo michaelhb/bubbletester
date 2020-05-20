@@ -39,6 +39,7 @@ public:
         }
 
         // Initialise polynomial basis and collocation / integration coefficients
+        // TODO - this should be done offline
         D = std::vector<double>(d+1, 0);
         B = std::vector<double>(d+1, 0);
         P = std::vector<Polynomial>(d + 1);
@@ -331,18 +332,12 @@ private:
         append_d(lbU, zeroes);
         append_d(ubU, zeroes);
 
-        for (int k = 1; k < N; ++k) {
+        for (int k = 1; k <= N; ++k) {
             SX Uk = SX::sym(varname("U", {k}), n_phi);
             U.push_back(Uk);
             append_d(lbU, lbinf);
             append_d(ubU, ubinf);
         }
-
-        // Need to avoid Tr(1) singularity
-        SX U_N_0 = SX::sym("U_N_0", n_phi);
-        U.push_back(U_N_0);
-        append_d(lbU, lbinf);
-        append_d(ubU, ubinf);
 
         /**** Initialise state variables ****/
 
