@@ -24,8 +24,19 @@ struct Ansatz {
 class CasadiCollocationSolver2 : public GenericBounceSolver {
 public:
     CasadiCollocationSolver2(int n_spatial_dimensions_, int N_) : n_dims(n_spatial_dimensions_), N(N_), d(3) {
-        tau_root = casadi::collocation_points(d, "legendre");
+        using namespace casadi;
+        tau_root = collocation_points(d, "legendre");
         tau_root.insert(tau_root.begin(), 0.);
+
+        if (n_dims == 3) {
+            S_n = 4*pi;
+        }
+        else if (n_dims == 4) {
+            S_n = 0.5*pi*pi;
+        }
+        else {
+            throw std::invalid_argument("Only d = 3 and d = 4 are currently supported.");
+        }
     }
 
     BouncePath solve(
@@ -70,9 +81,11 @@ public:
 
 private:
     int n_dims; // Number of spatial dimensions
+    double S_n; // Surface area of (d-1)-sphere
     int N; // Number of finite elements
     int d; // Degree of interpolating polynomials
-    double grid_scale = 1.8;
+    // double grid_scale = 1.8;
+    double grid_scale = 15.0;
 
     mutable std::vector<double> t_k; // Element start times
     mutable std::vector<double> h_k; // Element widths
@@ -94,16 +107,6 @@ private:
     double Tr_dot(double tau) const {
         return grid_scale / (1.0 - tau);
     }
-
-    // //! Transformation from compact to semi infinite domain
-    // double Tr(double tau) const {
-    //     return (1.0 + tau) / (1.0 - tau);
-    // }
-
-    // //! Derivative of monotonic transformation
-    // double Tr_dot(double tau) const {
-    //     return 2.0 / std::pow(tau - 1, 2);
-    // }
 
     //! Ansatz in semi-infinite coordinates
     casadi::DM ansatz(double rho, casadi::DM true_vac, casadi::DM false_vac, 
@@ -217,18 +220,6 @@ private:
 
         std::cout << "FALSE VAC: " << false_vac << std::endl;
         std::cout << "TRUE VAC: " << true_vac << std::endl;
-
-        // TEMP - hard coded volume factors
-        double S_n;
-        if (n_dims == 3) {
-            S_n = 4*pi;
-        }
-        else if (n_dims == 4) {
-            S_n = 0.5*pi*pi;
-        }
-        else {
-            throw std::invalid_argument("Only d = 3 and d = 4 are currently supported.");
-        }
 
         int n_phi = false_vac.size1();
         SX phi = SX::sym("phi", n_phi);
