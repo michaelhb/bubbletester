@@ -37,6 +37,37 @@ public:
         else {
             throw std::invalid_argument("Only d = 3 and d = 4 are currently supported.");
         }
+
+        // Initialise polynomial basis and collocation / integration coefficients
+        D = std::vector<double>(d+1, 0);
+        B = std::vector<double>(d+1, 0);
+        P = std::vector<Polynomial>(d + 1);
+        C = std::vector<std::vector<double> >(d+1,std::vector<double>(d+1, 0));
+
+        // Construct polynomial basis & extract relevant coefficients
+        for (int j = 0; j < d + 1; ++j) {
+
+            Polynomial p = 1;
+            for(int r = 0; r < d + 1; ++r){
+                if(r != j){
+                    p *= Polynomial(-tau_root[r],1)/(tau_root[j]-tau_root[r]);
+                }
+            }
+            P[j] = p;
+
+            // Evaluate the polynomial at the final time to get the coefficients of the continuity equation
+            D[j] = p(1.0);
+
+            // Evaluate the time derivative of the polynomial at all collocation points 
+            Polynomial dp = p.derivative();
+            for(int r=0; r<d+1; ++r){
+                C[j][r] = dp(tau_root[r]);
+            }
+            
+            // Evaluate the integral of the polynomial to get the coefficients for Gaussian quadrature
+            Polynomial ip = p.anti_derivative();
+            B[j] = ip(1.0);
+        }
     }
 
     BouncePath solve(
@@ -89,6 +120,18 @@ private:
 
     mutable std::vector<double> t_k; // Element start times
     mutable std::vector<double> h_k; // Element widths
+
+    // Coefficients of the collocation equation
+    std::vector<std::vector<double> > C;
+
+    // Coefficients of the continuity equation
+    std::vector<double> D;
+
+    // Coefficients for Gaussian quadrature 
+    std::vector<double> B;
+
+    // The polynomial basis
+    std::vector<casadi::Polynomial> P;
 
     // Vector of collocation points on [0,1)
     std::vector<double> tau_root;
@@ -249,43 +292,6 @@ private:
             for (int j = 0; j <= d; ++j) {
                 par0.push_back(Tr_dot(t_kj(k,j)));
             }
-        }
-
-        // Coefficients of the collocation equation
-        std::vector<std::vector<double> > C(d+1,std::vector<double>(d+1, 0));
-
-        // Coefficients of the continuity equation
-        std::vector<double> D(d+1, 0);
-
-        // Coefficients for Gaussian quadrature 
-        std::vector<double> B(d+1, 0);
-
-        // The polynomial basis
-        std::vector<Polynomial> P(d + 1);
-
-        // Construct polynomial basis & extract relevant coefficients
-        for (int j = 0; j < d + 1; ++j) {
-
-            Polynomial p = 1;
-            for(int r = 0; r < d + 1; ++r){
-                if(r != j){
-                    p *= Polynomial(-tau_root[r],1)/(tau_root[j]-tau_root[r]);
-                }
-            }
-            P[j] = p;
-
-            // Evaluate the polynomial at the final time to get the coefficients of the continuity equation
-            D[j] = p(1.0);
-
-            // Evaluate the time derivative of the polynomial at all collocation points 
-            Polynomial dp = p.derivative();
-            for(int r=0; r<d+1; ++r){
-                C[j][r] = dp(tau_root[r]);
-            }
-            
-            // Evaluate the integral of the polynomial to get the coefficients for Gaussian quadrature
-            Polynomial ip = p.anti_derivative();
-            B[j] = ip(1.0);
         }
 
         // Begin constructing NLP
