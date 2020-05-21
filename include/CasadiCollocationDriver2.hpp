@@ -31,7 +31,6 @@ struct NLP {
     casadi::Function V_a;
     casadi::Function V_ret;
     casadi::Function Phi_ret;
-    Ansatz a;
 };
 
 class CasadiCollocationSolver2 : public GenericBounceSolver {
@@ -190,14 +189,14 @@ private:
     }
 
     Ansatz get_ansatz(casadi::Function fV, 
-        std::vector<double> par0, casadi::DM true_vac, casadi::DM false_vac) const {
+        std::vector<double> grid_pars, casadi::DM true_vac, casadi::DM false_vac) const {
 
         Ansatz a;
         std::vector<double> Phi0, U0;
         Phi0.reserve((N*(n_dims + 1) + 1));
         U0.reserve(N + 1);
         casadi::DMDict argV;
-        argV["par"] = par0;
+        argV["par"] = grid_pars;
 
         double r0 = 0.5;
         double delta_r0 = 0.1;
@@ -275,7 +274,7 @@ private:
     }
 
     // Get vector of parametric input values
-    std::vector<double> get_par0() const {
+    std::vector<double> get_grid_pars() const {
         // This is a standin to allow for more flexibility later
         std::vector<double> par0;
         par0.insert(par0.end(), h_k.begin(), h_k.end());
@@ -297,36 +296,36 @@ private:
     // TODO memoize this, should only be called when potential changes
     // TODO make V0 a parameter, and push ansatz calculation to callers
     //   (then remove the vacuum parameters, they are only needed for V0)
-    NLP get_nlp(casadi::Function potential,
-                             const Eigen::VectorXd& true_vacuum, 
-                             const Eigen::VectorXd& false_vacuum) const {
+    NLP get_nlp(casadi::Function potential) const {
         using namespace casadi;
         using namespace std::chrono;
         auto t_setup_start = high_resolution_clock::now();
 
-        // TEMP
-        DM true_vac = eigen_to_dm(true_vacuum);
-        DM false_vac = eigen_to_dm(false_vacuum);
-
         /**** Initialise parameter variables ****/
         SXVector h_par, gamma_par, gammadot_par; 
-        SXVector par; // All parameter variables concatenated
+        SXVector grid_pars; // All grid parameter variables
 
         for (int i = 0; i < N; ++i) {
             SX h_par_ = SX::sym(varname("h", {i}));
             h_par.push_back(h_par_);
-            par.push_back(h_par_);
+            grid_pars.push_back(h_par_);
         }
         for (int i = 0; i < N; ++i) {
             SX gamma_par_ = SX::sym(varname("gamma", {i}), d + 1);
             gamma_par.push_back(gamma_par_);
-            par.push_back(gamma_par_);
+            grid_pars.push_back(gamma_par_);
         }
         for (int i = 0; i < N; ++i) {
             SX gammadot_par_ = SX::sym(varname("gammadot", {i}), d + 1);
             gammadot_par.push_back(gammadot_par_);
-            par.push_back(gammadot_par_);
+            grid_pars.push_back(gammadot_par_);
         }
+
+        SX V0_par = SX::sym("V0");
+
+        // Grid pars + V0
+        SXVector pars = grid_pars;
+        pars.push_back(V0_par);
 
         /**** Initialise control variables ****/        
         SXVector U;
@@ -468,19 +467,8 @@ private:
             T += T_obj_k(quadrature_inputs_)[0];
             V += V_cons_k(quadrature_inputs_)[0];
         }
-        Function fV = Function("fV", {vertcat(Phi), vertcat(par)}, {V}, {"Phi", "par"}, {"V"});
-        Function fT = Function("fT", {vertcat(U), vertcat(par)}, {T}, {"U", "par"}, {"T"});
-
-        /**** Calculate the ansatz ****/
-        // TODO - decouple ansatz creation from NLP definition
-        // (by making V0 a parameter, rather than baking it into the NLP
-
-        // Need default parametric grid
-        std::vector<double> par0 = get_par0();
-
-        // TEMP - get the ansatz
-        
-        Ansatz a = get_ansatz(fV, par0, true_vac, false_vac);
+        Function fV = Function("fV", {vertcat(Phi), vertcat(grid_pars)}, {V}, {"Phi", "par"}, {"V"});
+        Function fT = Function("fT", {vertcat(U), vertcat(grid_pars)}, {T}, {"U", "par"}, {"T"});
 
         /**** Build constraints ****/ 
         SXVector g = {}; // All constraints
@@ -501,10 +489,9 @@ private:
         }
 
         // Potential constraint
-        g.push_back(a.V0 - V);
+        g.push_back(V0_par - V);
 
         /**** Concatenate variables ****/
-
         SXVector w = {}; // All decision variables
         w.insert(w.end(), Phi.begin(), Phi.end());
         w.insert(w.end(), U.begin(), U.end());
@@ -512,15 +499,14 @@ private:
         // Collect states and constraints into single vectors
         SX W = SX::vertcat(w);
         SX G = SX::vertcat(g);
-        SX Par = SX::vertcat(par);
 
         // Versions of T and V suitable for evaluating on results 
         SX elements_plot = SX::horzcat(element_plot);
         Function Phi_ret = Function("elements", {W}, {elements_plot});
-        Function T_ret = Function("T_ret", {W, Par}, {T}, {"W", "Par"}, {"T"});
-        Function V_ret = Function("V_ret", {W, Par}, {V}, {"W", "Par"}, {"V"});
+        Function T_ret = Function("T_ret", {W, vertcat(grid_pars)}, {T}, {"W", "Par"}, {"T"});
+        Function V_ret = Function("V_ret", {W, vertcat(grid_pars)}, {V}, {"W", "Par"}, {"V"});
 
-        SXDict nlp_arg = {{"f", T}, {"x", W}, {"g", G}, {"p", Par}};
+        SXDict nlp_arg = {{"f", T}, {"x", W}, {"g", G}, {"p", vertcat(pars)}};
         Dict nlp_opt = Dict();
         nlp_opt["expand"] = false;
         nlp_opt["ipopt.tol"] = 1e-3;
@@ -538,7 +524,6 @@ private:
         nlp.V_a = fV;
         nlp.V_ret = V_ret;
         nlp.Phi_ret = Phi_ret;
-        nlp.a = a;
 
         return nlp;
     }
@@ -556,21 +541,22 @@ private:
         std::cout << "FALSE VAC: " << false_vac << std::endl;
         std::cout << "TRUE VAC: " << true_vac << std::endl;
 
-        // Build vector of parametric inputs (h_k, gamma, gamma_dot)
-        std::vector<double> par0 = get_par0();
+        // Get the grid parameters (h_k, gamma, gamma_dot)
+        std::vector<double> grid_pars = get_grid_pars();
 
         // Initialise NLP and get ansatz solution
-        NLP nlp = get_nlp(potential, true_vacuum, false_vacuum);
+        NLP nlp = get_nlp(potential);
+        Ansatz a = get_ansatz(nlp.V_a, grid_pars, true_vac, false_vac);
 
         // Evaluate T and V on the ansatz
         DMDict argT;
-        argT["U"] = nlp.a.U0;
-        argT["par"] = par0;
+        argT["U"] = a.U0;
+        argT["par"] = grid_pars;
         double T0 = nlp.T_a(argT).at("T").get_elements()[0];
 
         DMDict argV;
-        argV["Phi"] = nlp.a.Phi0;
-        argV["par"] = par0;
+        argV["Phi"] = a.Phi0;
+        argV["par"] = grid_pars; 
         double V0 = nlp.V_a(argV).at("V").get_elements()[0];
 
         std::cout << std::setprecision(20);
@@ -646,8 +632,8 @@ private:
         /**** Concatenate NLP inputs ****/
 
         std::vector<double> w0 = {}; // Initial values for decision variables
-        w0.insert(w0.end(), nlp.a.Phi0.begin(), nlp.a.Phi0.end());
-        w0.insert(w0.end(), nlp.a.U0.begin(), nlp.a.U0.end());
+        w0.insert(w0.end(), a.Phi0.begin(), a.Phi0.end());
+        w0.insert(w0.end(), a.U0.begin(), a.U0.end());
     
         /**** Concatenate decision variable bounds****/
         std::vector<double> lbw = {}; 
@@ -660,8 +646,12 @@ private:
 
         /**** Initialise and solve the NLP ****/
 
+        // Add V0 to parameters
+        std::vector<double> pars(grid_pars);
+        pars.push_back(V0);
+
         // Run the optimiser. This is the other bottleneck, so we time it too.
-        DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}, {"p", par0}};
+        DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}, {"p", pars}};
         auto t_solve_start = high_resolution_clock::now();
         DMDict res = nlp.nlp(arg);
         auto t_solve_end = high_resolution_clock::now();
@@ -669,11 +659,11 @@ private:
         std::cout << "CasadiMaupertuisSolver - optimisation took " << solve_duration << " sec" << std::endl;
 
         // Evaluate the objective & constraint on the result
-        DMDict T_ret_arg;
-        T_ret_arg["W"] = res["x"];
-        T_ret_arg["Par"] = par0;
-        double Tret = nlp.T_ret(T_ret_arg).at("T").get_elements()[0];
-        double Vret = nlp.V_ret(T_ret_arg).at("V").get_elements()[0];
+        DMDict ret_arg;
+        ret_arg["W"] = res["x"];
+        ret_arg["Par"] = grid_pars;
+        double Tret = nlp.T_ret(ret_arg).at("T").get_elements()[0];
+        double Vret = nlp.V_ret(ret_arg).at("V").get_elements()[0];
 
         std::cout << "V(result) = " << Vret << std::endl;
         std::cout << "T(result) = " << Tret << std::endl;
