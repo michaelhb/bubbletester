@@ -21,6 +21,19 @@ struct Ansatz {
     std::vector<double> U0;
 };
 
+struct NLP {
+    casadi::Function nlp;
+    
+    // Separate T/V for ansatz / return is 
+    // ugly and should be done better 
+    casadi::Function T_a;
+    casadi::Function T_ret;
+    casadi::Function V_a;
+    casadi::Function V_ret;
+    casadi::Function Phi_ret;
+    Ansatz a;
+};
+
 class CasadiCollocationSolver2 : public GenericBounceSolver {
 public:
     CasadiCollocationSolver2(int n_phi_, int n_spatial_dimensions_, int N_) : n_phi(n_phi_), n_dims(n_spatial_dimensions_), N(N_), d(3) {
@@ -48,8 +61,8 @@ public:
 
         // Initialise polynomial basis and collocation / integration coefficients
         // TODO - this should be done offline
-        D = std::vector<double>(d+1, 0);
-        B = std::vector<double>(d+1, 0);
+        D = std::vector<double>(d + 1, 0);
+        B = std::vector<double>(d + 1, 0);
         P = std::vector<Polynomial>(d + 1);
         C = std::vector<std::vector<double> >(d+1,std::vector<double>(d+1, 0));
 
@@ -76,61 +89,6 @@ public:
             // Evaluate the integral of the polynomial to get the coefficients for Gaussian quadrature
             Polynomial ip = p.anti_derivative();
             B[j] = ip(1.0);
-        }
-
-        /**** Initialise parameter variables ****/
-        for (int i = 0; i < N; ++i) {
-            SX h_par_ = SX::sym(varname("h", {i}));
-            h_par.push_back(h_par_);
-            par.push_back(h_par_);
-        }
-        for (int i = 0; i < N; ++i) {
-            SX gamma_par_ = SX::sym(varname("gamma", {i}), d + 1);
-            gamma_par.push_back(gamma_par_);
-            par.push_back(gamma_par_);
-        }
-        for (int i = 0; i < N; ++i) {
-            SX gammadot_par_ = SX::sym(varname("gammadot", {i}), d + 1);
-            gammadot_par.push_back(gammadot_par_);
-            par.push_back(gammadot_par_);
-        }
-
-        /**** Initialise control variables ****/        
-
-        // Derivative at origin fixed to zero
-        SX U_0_0 = SX::sym("U_0_0", n_phi);
-        U.push_back(U_0_0);
-
-        for (int k = 1; k <= N; ++k) {
-            SX Uk = SX::sym(varname("U", {k}), n_phi);
-            U.push_back(Uk);
-        }
-
-        /**** Initialise state variables ****/
-
-        // Free endpoint states
-        for (int k = 0; k < N; ++k) {
-            SX phi_k_0 = SX::sym(varname("phi", {k, 0}), n_phi);
-            endpoints.push_back(phi_k_0);
-            Phi.push_back(phi_k_0);
-        }
-
-        // Final state, fixed to the false vacuum
-        SX phi_N_0 = SX::sym("phi_N_0", n_phi);
-        endpoints.push_back(phi_N_0);
-        Phi.push_back(phi_N_0);
-
-        // Build finite elements (including left endpoints)
-        for (int k = 0; k < N; ++k) {
-            std::vector<SX> e_states;
-            e_states.push_back(endpoints[k]);
-            for (int j = 1; j <= d; ++j) {
-                SX phi_k_j = SX::sym(varname("phi", {k, j}), n_phi);
-                e_states.push_back(phi_k_j);
-                Phi.push_back(phi_k_j);
-            }
-            element_plot.push_back(SX::horzcat(e_states));
-            element_states.push_back(e_states);
         }
     }
 
@@ -183,14 +141,14 @@ private:
     double grid_scale = 15.0;
 
     // TODO - make these local variables as appropriate
-    casadi::SXVector Phi, U; // All control variabes
-    casadi::SXVector h_par, gamma_par, gammadot_par; // Parameter variables
-    casadi::SXVector par; // All parameter variables concatenated
+    mutable casadi::SXVector Phi, U; // All control variabes
+    mutable casadi::SXVector h_par, gamma_par, gammadot_par; // Parameter variables
+    mutable casadi::SXVector par; // All parameter variables concatenated
     std::vector<double> t_k; // Element start times
     std::vector<double> h_k; // Element widths
-    std::vector<casadi::SXVector> element_states; // States within an element
-    casadi::SXVector element_plot; // Concatenated states within an element
-    std::vector<casadi::SX> endpoints; // Endpoint states
+    mutable std::vector<casadi::SXVector> element_states; // States within an element
+    mutable casadi::SXVector element_plot; // Concatenated states within an element
+    mutable std::vector<casadi::SX> endpoints; // Endpoint states
 
     // Coefficients of the collocation equation
     std::vector<std::vector<double> > C;
@@ -322,25 +280,10 @@ private:
         a.V0 = V_mid;
         return a;
     }
-    
-    BouncePath _solve(const Eigen::VectorXd& true_vacuum, 
-                      const Eigen::VectorXd& false_vacuum,
-                      casadi::Function potential) const {
-        using namespace casadi;
-        using namespace std::chrono;
 
-        DM true_vac = eigen_to_dm(true_vacuum);
-        DM false_vac = eigen_to_dm(false_vacuum);
-
-        std::cout << "FALSE VAC: " << false_vac << std::endl;
-        std::cout << "TRUE VAC: " << true_vac << std::endl;
-
-        SX phi = SX::sym("phi", n_phi);
-
-        // Value of potential at false 
-        DM v_true = potential(true_vac);
-
-        // Build vector of parametric inputs (h_k, gamma, gamma_dot)
+    // Get vector of parametric input values
+    std::vector<double> get_par0() const {
+        // This is a standin to allow for more flexibility later
         std::vector<double> par0;
         par0.insert(par0.end(), h_k.begin(), h_k.end());
 
@@ -355,48 +298,79 @@ private:
                 par0.push_back(Tr_dot(t_kj(k,j)));
             }
         }
+        return par0;
+    }
 
-        // Limits for unbounded variables
-        std::vector<double> ubinf(n_phi, inf);
-        std::vector<double> lbinf(n_phi, -inf);
+    // TODO memoize this, should only be called when potential changes
+    // TODO make V0 a parameter, and push ansatz calculation to callers
+    //   (then remove the vacuum parameters, they are only needed for V0)
+    NLP get_nlp(casadi::Function potential,
+                             const Eigen::VectorXd& true_vacuum, 
+                             const Eigen::VectorXd& false_vacuum) const {
+        using namespace casadi;
+        using namespace std::chrono;
+        auto t_setup_start = high_resolution_clock::now();
 
-        // Zero vector for constraint bounds
-        std::vector<double> zeroes(n_phi, 0);
+        // TEMP
+        DM true_vac = eigen_to_dm(true_vacuum);
+        DM false_vac = eigen_to_dm(false_vacuum);
 
-        /**** Bounds on control variables ****/        
-        std::vector<double> lbU, ubU;
-
-        // Derivative at origin fixed to zero
-        append_d(lbU, zeroes);
-        append_d(ubU, zeroes);
-
-        for (int k = 1; k <= N; ++k) {
-            append_d(lbU, lbinf);
-            append_d(ubU, ubinf);
+        /**** Initialise parameter variables ****/
+        for (int i = 0; i < N; ++i) {
+            SX h_par_ = SX::sym(varname("h", {i}));
+            h_par.push_back(h_par_);
+            par.push_back(h_par_);
+        }
+        for (int i = 0; i < N; ++i) {
+            SX gamma_par_ = SX::sym(varname("gamma", {i}), d + 1);
+            gamma_par.push_back(gamma_par_);
+            par.push_back(gamma_par_);
+        }
+        for (int i = 0; i < N; ++i) {
+            SX gammadot_par_ = SX::sym(varname("gammadot", {i}), d + 1);
+            gammadot_par.push_back(gammadot_par_);
+            par.push_back(gammadot_par_);
         }
 
-        /**** Bounds on state variables ****/
-        std::vector<double> lbPhi, ubPhi;
+        /**** Initialise control variables ****/        
+
+        // Derivative at origin fixed to zero
+        SX U_0_0 = SX::sym("U_0_0", n_phi);
+        U.push_back(U_0_0);
+
+        for (int k = 1; k <= N; ++k) {
+            SX Uk = SX::sym(varname("U", {k}), n_phi);
+            U.push_back(Uk);
+        }
+
+        /**** Initialise state variables ****/
 
         // Free endpoint states
         for (int k = 0; k < N; ++k) {
-            append_d(lbPhi, lbinf);
-            append_d(ubPhi, ubinf);
+            SX phi_k_0 = SX::sym(varname("phi", {k, 0}), n_phi);
+            endpoints.push_back(phi_k_0);
+            Phi.push_back(phi_k_0);
         }
 
         // Final state, fixed to the false vacuum
-        append_d(lbPhi, false_vac.get_elements());
-        append_d(ubPhi, false_vac.get_elements());
+        SX phi_N_0 = SX::sym("phi_N_0", n_phi);
+        endpoints.push_back(phi_N_0);
+        Phi.push_back(phi_N_0);
 
-        // Free intermediate states
+        // Build finite elements (including left endpoints)
         for (int k = 0; k < N; ++k) {
+            std::vector<SX> e_states;
+            e_states.push_back(endpoints[k]);
             for (int j = 1; j <= d; ++j) {
-                append_d(lbPhi, lbinf);
-                append_d(ubPhi, ubinf);
+                SX phi_k_j = SX::sym(varname("phi", {k, j}), n_phi);
+                e_states.push_back(phi_k_j);
+                Phi.push_back(phi_k_j);
             }
+            element_plot.push_back(SX::horzcat(e_states));
+            element_states.push_back(e_states);
         }
-        
-        /**** Useful functions of the state and control variables ****/
+
+        /**** Useful functions of the state and control variables in an element ****/
 
         // State variables in a given element
         SXVector element;
@@ -441,7 +415,7 @@ private:
             }
             phidot_cons.push_back(h_elem*gammadot(j)*control_int[j - 1] - phidot_approx);
         }
-        
+
         SXVector phidot_inputs;
         phidot_inputs.insert(phidot_inputs.end(), element.begin(), element.end());
         phidot_inputs.push_back(control_start);
@@ -458,7 +432,16 @@ private:
             T_k = T_k + 0.5*S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)
                 *gammadot(j)*dot(control_int[j - 1], control_int[j - 1]);
         }
-        
+
+        // Value of potential constraint functional on an element
+        SX V_k = 0;
+
+        for (int j = 1; j <= d; ++j) {
+            V_k = V_k + S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)*gammadot(j)*potential(element[j])[0];
+        }
+
+        // We define per-element functions for the quadratures, then use them to build
+        // integrals over the whole domain.
         SXVector quadrature_inputs;
         quadrature_inputs.insert(quadrature_inputs.end(), element.begin(), element.end());
         quadrature_inputs.push_back(control_start);
@@ -468,31 +451,7 @@ private:
         quadrature_inputs.push_back(gammadot);
         
         Function T_obj_k = Function("T_obj_k", quadrature_inputs, {T_k});
-        
-        // Value of potential constraint functional on an element
-        SX V_k = 0;
-
-        for (int j = 1; j <= d; ++j) {
-            V_k = V_k + S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)*gammadot(j)*potential(element[j])[0];
-        }
-
         Function V_cons_k = Function("V_cons_k", quadrature_inputs, {V_k});
-
-        /**** Implement the objective and constraints ****/
-
-        SXVector g = {}; // All constraints
-        std::vector<double> lbg = {}; // Lower bounds for constraints
-        std::vector<double> ubg = {}; // Upper bounds for constraints
-
-        // Zero vector for collocation bounds
-        std::vector<double> zeroes_col(d*n_phi, 0);
-
-        // Continuity equations
-        for (int k = 0; k < N; ++k) {
-            g.push_back(Phi_end(element_states[k])[0] - endpoints[k + 1]);
-            append_d(lbg, zeroes);
-            append_d(ubg, zeroes);
-        }
 
         // Build quadratures
         SX T = 0; // Objective function
@@ -508,8 +467,29 @@ private:
             T += T_obj_k(quadrature_inputs_)[0];
             V += V_cons_k(quadrature_inputs_)[0];
         }
+        Function fV = Function("fV", {vertcat(Phi), vertcat(par)}, {V}, {"Phi", "par"}, {"V"});
+        Function fT = Function("fT", {vertcat(U), vertcat(par)}, {T}, {"U", "par"}, {"T"});
 
-        // Collocation equations and objective function
+        /**** Calculate the ansatz ****/
+        // TODO - decouple ansatz creation from NLP definition
+        // (by making V0 a parameter, rather than baking it into the NLP
+
+        // Need default parametric grid
+        std::vector<double> par0 = get_par0();
+
+        // TEMP - get the ansatz
+        
+        Ansatz a = get_ansatz(fV, par0, true_vac, false_vac);
+
+        /**** Build constraints ****/ 
+        SXVector g = {}; // All constraints
+
+        // Continuity equations
+        for (int k = 0; k < N; ++k) {
+            g.push_back(Phi_end(element_states[k])[0] - endpoints[k + 1]);
+        }
+
+        // Collocation equations
         for (int k = 0; k < N; ++k) {
             SXVector phidot_inputs_ = SXVector(element_states[k]);
             phidot_inputs_.push_back(U[k]);
@@ -517,90 +497,182 @@ private:
             phidot_inputs_.push_back(h_par[k]);
             phidot_inputs_.push_back(gammadot_par[k]);
             g.push_back(SX::vertcat(Phidot_cons(phidot_inputs_)));
-            append_d(lbg, zeroes_col);
-            append_d(ubg, zeroes_col);
         }
 
-        /**** Calculate the ansatz ****/
-        Function fV = Function("fV", {vertcat(Phi), vertcat(par)}, {V}, {"Phi", "par"}, {"V"});
-        Ansatz a = get_ansatz(fV, par0, true_vac, false_vac);
+        // Potential constraint
+        g.push_back(a.V0 - V);
 
-        /**** Concatenate decision variables ****/
+        /**** Concatenate variables ****/
 
         SXVector w = {}; // All decision variables
-        std::vector<double> w0 = {}; // Initial values for decision variables
-        std::vector<double> lbw = {}; // Lower bounds for decision variables
-        std::vector<double> ubw = {}; // Upper bounds for decision variables      
-    
-        // State variables
         w.insert(w.end(), Phi.begin(), Phi.end());
-        w0.insert(w0.end(), a.Phi0.begin(), a.Phi0.end());
-        lbw.insert(lbw.end(), lbPhi.begin(), lbPhi.end());
-        ubw.insert(ubw.end(), ubPhi.begin(), ubPhi.end());
-
-        // Control variables
         w.insert(w.end(), U.begin(), U.end());
-        w0.insert(w0.end(), a.U0.begin(), a.U0.end());
-        lbw.insert(lbw.end(), lbU.begin(), lbU.end());
-        ubw.insert(ubw.end(), ubU.begin(), ubU.end());
-
-        // Evaluate quadratures on ansatz
-        Function fT = Function("fT", {vertcat(U), vertcat(par)}, {T}, {"U", "par"}, {"T"});
-        DMDict argT;
-        argT["U"] = a.U0;
-        argT["par"] = par0;
-        double T0 = fT(argT).at("T").get_elements()[0];
-
-        DMDict argV;
-        argV["Phi"] = a.Phi0;
-        argV["par"] = par0;
-        double V0 = fV(argV).at("V").get_elements()[0];
-
-        std::cout << std::setprecision(20);
-        std::cout << "V(ansatz) = " << V0 << std::endl;
-        std::cout << "T(ansatz) = " << T0 << std::endl;
-
-        // Add potential constraint
-        g.push_back(V0 - V);
-        lbg.push_back(0);
-        ubg.push_back(0);
-
-        /**** Initialise and solve the NLP ****/
 
         // Collect states and constraints into single vectors
         SX W = SX::vertcat(w);
         SX G = SX::vertcat(g);
         SX Par = SX::vertcat(par);
 
-        // Create the solver (this is one of the bottlenecks, so we time it)
-        SXDict nlp = {{"f", T}, {"x", W}, {"g", G}, {"p", Par}};
+        // Versions of T and V suitable for evaluating on results 
+        SX elements_plot = SX::horzcat(element_plot);
+        Function Phi_ret = Function("elements", {W}, {elements_plot});
+        Function T_ret = Function("T_ret", {W, Par}, {T}, {"W", "Par"}, {"T"});
+        Function V_ret = Function("V_ret", {W, Par}, {V}, {"W", "Par"}, {"V"});
+
+        SXDict nlp_arg = {{"f", T}, {"x", W}, {"g", G}, {"p", Par}};
         Dict nlp_opt = Dict();
         nlp_opt["expand"] = false;
         nlp_opt["ipopt.tol"] = 1e-3;
         nlp_opt["ipopt.constr_viol_tol"] = 1e-3;
 
-        auto t_setup_start = high_resolution_clock::now();
-        Function solver = nlpsol("nlpsol", "ipopt", nlp, nlp_opt);
+        Function solver = nlpsol("nlpsol", "ipopt", nlp_arg, nlp_opt);
         auto t_setup_end = high_resolution_clock::now();
         auto setup_duration = duration_cast<microseconds>(t_setup_end - t_setup_start).count() * 1e-6;
         std::cout << "CasadiMaupertuisSolver - setup took " << setup_duration << " sec" << std::endl;
+        
+        NLP nlp;
+        nlp.nlp = solver;
+        nlp.T_a = fT;
+        nlp.T_ret = T_ret;
+        nlp.V_a = fV;
+        nlp.V_ret = V_ret;
+        nlp.Phi_ret = Phi_ret;
+        nlp.a = a;
+
+        return nlp;
+    }
+    
+    BouncePath _solve(const Eigen::VectorXd& true_vacuum, 
+                      const Eigen::VectorXd& false_vacuum,
+                      casadi::Function potential) const {
+
+        using namespace casadi;
+        using namespace std::chrono;
+
+        DM true_vac = eigen_to_dm(true_vacuum);
+        DM false_vac = eigen_to_dm(false_vacuum);
+
+        std::cout << "FALSE VAC: " << false_vac << std::endl;
+        std::cout << "TRUE VAC: " << true_vac << std::endl;
+
+        // Build vector of parametric inputs (h_k, gamma, gamma_dot)
+        std::vector<double> par0 = get_par0();
+
+        // Initialise NLP and get ansatz solution
+        NLP nlp = get_nlp(potential, true_vacuum, false_vacuum);
+
+        // Evaluate T and V on the ansatz
+        DMDict argT;
+        argT["U"] = nlp.a.U0;
+        argT["par"] = par0;
+        double T0 = nlp.T_a(argT).at("T").get_elements()[0];
+
+        DMDict argV;
+        argV["Phi"] = nlp.a.Phi0;
+        argV["par"] = par0;
+        double V0 = nlp.V_a(argV).at("V").get_elements()[0];
+
+        std::cout << std::setprecision(20);
+        std::cout << "V(ansatz) = " << V0 << std::endl;
+        std::cout << "T(ansatz) = " << T0 << std::endl;
+        
+        /**** Bounds on control variables ****/
+        // Need to find a less opaque way of ensuring that 
+        // concatenated NLP inputs / bounds / start values 
+        // are consistently ordered!
+
+        // Limits for unbounded variables
+        std::vector<double> ubinf(n_phi, inf);
+        std::vector<double> lbinf(n_phi, -inf);
+
+        // Zero vector for constraint bounds
+        std::vector<double> zeroes(n_phi, 0);
+        
+        // Zero vector for collocation bounds
+        std::vector<double> zeroes_col(d*n_phi, 0);
+        std::vector<double> lbU, ubU;
+
+        // Derivative at origin fixed to zero
+        append_d(lbU, zeroes);
+        append_d(ubU, zeroes);
+
+        for (int k = 1; k <= N; ++k) {
+            append_d(lbU, lbinf);
+            append_d(ubU, ubinf);
+        }
+
+        /**** Bounds on state variables ****/
+        std::vector<double> lbPhi, ubPhi;
+
+        // Free endpoint states
+        for (int k = 0; k < N; ++k) {
+            append_d(lbPhi, lbinf);
+            append_d(ubPhi, ubinf);
+        }
+
+        // Final state, fixed to the false vacuum
+        append_d(lbPhi, false_vac.get_elements());
+        append_d(ubPhi, false_vac.get_elements());
+
+        // Free intermediate states
+        for (int k = 0; k < N; ++k) {
+            for (int j = 1; j <= d; ++j) {
+                append_d(lbPhi, lbinf);
+                append_d(ubPhi, ubinf);
+            }
+        }
+
+        /**** Bounds on constraints ****/
+        std::vector<double> lbg = {}; // Lower bounds for constraints
+        std::vector<double> ubg = {}; // Upper bounds for constraints
+
+        // Continuity equations
+        for (int k = 0; k < N; ++k) {
+            append_d(lbg, zeroes);
+            append_d(ubg, zeroes);
+        }
+
+        // Collocation equations and objective function
+        for (int k = 0; k < N; ++k) {
+            append_d(lbg, zeroes_col);
+            append_d(ubg, zeroes_col);
+        }
+
+        // Add potential constraint
+        lbg.push_back(0);
+        ubg.push_back(0);
+
+        /**** Concatenate NLP inputs ****/
+
+        std::vector<double> w0 = {}; // Initial values for decision variables
+        w0.insert(w0.end(), nlp.a.Phi0.begin(), nlp.a.Phi0.end());
+        w0.insert(w0.end(), nlp.a.U0.begin(), nlp.a.U0.end());
+    
+        /**** Concatenate decision variable bounds****/
+        std::vector<double> lbw = {}; 
+        std::vector<double> ubw = {};  
+
+        lbw.insert(lbw.end(), lbPhi.begin(), lbPhi.end());
+        ubw.insert(ubw.end(), ubPhi.begin(), ubPhi.end());
+        lbw.insert(lbw.end(), lbU.begin(), lbU.end());
+        ubw.insert(ubw.end(), ubU.begin(), ubU.end());
+
+        /**** Initialise and solve the NLP ****/
 
         // Run the optimiser. This is the other bottleneck, so we time it too.
         DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}, {"p", par0}};
         auto t_solve_start = high_resolution_clock::now();
-        DMDict res = solver(arg);
+        DMDict res = nlp.nlp(arg);
         auto t_solve_end = high_resolution_clock::now();
         auto solve_duration = duration_cast<microseconds>(t_solve_end - t_solve_start).count() * 1e-6;
         std::cout << "CasadiMaupertuisSolver - optimisation took " << solve_duration << " sec" << std::endl;
 
         // Evaluate the objective & constraint on the result
-        Function T_ret = Function("T_ret", {W, Par}, {T}, {"W", "Par"}, {"T"});
-        Function V_ret = Function("V_ret", {W, Par}, {V}, {"W", "Par"}, {"V"});
         DMDict T_ret_arg;
         T_ret_arg["W"] = res["x"];
         T_ret_arg["Par"] = par0;
-        double Tret = T_ret(T_ret_arg).at("T").get_elements()[0];
-        double Vret = V_ret(T_ret_arg).at("V").get_elements()[0];
+        double Tret = nlp.T_ret(T_ret_arg).at("T").get_elements()[0];
+        double Vret = nlp.V_ret(T_ret_arg).at("V").get_elements()[0];
 
         std::cout << "V(result) = " << Vret << std::endl;
         std::cout << "T(result) = " << Tret << std::endl;
@@ -609,14 +681,10 @@ private:
         double action = std::pow(((2.0 - d)/d)*(Tret/Vret), 0.5*d)*((2.0*Vret)/(2.0 - d));
 
         // Return the result (interpolated using the Lagrange representation)
-        auto t_extract_start = high_resolution_clock::now(); 
-        SX elements_plot = SX::horzcat(element_plot);
-
-        Function elements = Function("elements", {W}, {elements_plot});
 
         Eigen::MatrixXd elementmx = 
             Eigen::Map<Eigen::MatrixXd>(
-                elements(res["x"]).at(0).get_elements().data(), n_phi, N*(d + 1)).transpose();
+                nlp.Phi_ret(res["x"]).at(0).get_elements().data(), n_phi, N*(d + 1)).transpose();
 
         Eigen::VectorXd radii(N*(d + 1));
         int c = 0;
@@ -626,12 +694,6 @@ private:
                 c++;
             }
         }
-        
-        auto t_extract_end = high_resolution_clock::now();
-        auto extract_duration = duration_cast<microseconds>(t_extract_end - t_extract_start).count() * 1e-6;
-        std::cout << "CasadiMaupertuisSolver - extracting / formatting took " << extract_duration << " sec" << std::endl;
-
-        std::cout << W.size() << std::endl;
 
         return BouncePath(radii, elementmx, action);
     }
