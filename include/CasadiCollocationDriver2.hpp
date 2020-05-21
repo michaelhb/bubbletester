@@ -140,15 +140,8 @@ private:
     int d; // Degree of interpolating polynomials
     double grid_scale = 15.0;
 
-    // TODO - make these local variables as appropriate
-    mutable casadi::SXVector Phi, U; // All control variabes
-    mutable casadi::SXVector h_par, gamma_par, gammadot_par; // Parameter variables
-    mutable casadi::SXVector par; // All parameter variables concatenated
     std::vector<double> t_k; // Element start times
     std::vector<double> h_k; // Element widths
-    mutable std::vector<casadi::SXVector> element_states; // States within an element
-    mutable casadi::SXVector element_plot; // Concatenated states within an element
-    mutable std::vector<casadi::SX> endpoints; // Endpoint states
 
     // Coefficients of the collocation equation
     std::vector<std::vector<double> > C;
@@ -316,6 +309,9 @@ private:
         DM false_vac = eigen_to_dm(false_vacuum);
 
         /**** Initialise parameter variables ****/
+        SXVector h_par, gamma_par, gammadot_par; 
+        SXVector par; // All parameter variables concatenated
+
         for (int i = 0; i < N; ++i) {
             SX h_par_ = SX::sym(varname("h", {i}));
             h_par.push_back(h_par_);
@@ -333,6 +329,7 @@ private:
         }
 
         /**** Initialise control variables ****/        
+        SXVector U;
 
         // Derivative at origin fixed to zero
         SX U_0_0 = SX::sym("U_0_0", n_phi);
@@ -344,6 +341,10 @@ private:
         }
 
         /**** Initialise state variables ****/
+        SXVector Phi;
+        std::vector<SXVector> element_states; // States within an element
+        SXVector element_plot; // Concatenated states within an element
+        SXVector endpoints; // Endpoint states
 
         // Free endpoint states
         for (int k = 0; k < N; ++k) {
