@@ -23,7 +23,7 @@ struct Ansatz {
 
 class CasadiCollocationSolver2 : public GenericBounceSolver {
 public:
-    CasadiCollocationSolver2(int n_spatial_dimensions_, int N_) : n_dims(n_spatial_dimensions_), N(N_), d(3) {
+    CasadiCollocationSolver2(int n_phi_, int n_spatial_dimensions_, int N_) : n_phi(n_phi_), n_dims(n_spatial_dimensions_), N(N_), d(3) {
         using namespace casadi;
         tau_root = collocation_points(d, "legendre");
         tau_root.insert(tau_root.begin(), 0.);
@@ -36,6 +36,14 @@ public:
         }
         else {
             throw std::invalid_argument("Only d = 3 and d = 4 are currently supported.");
+        }
+
+        // Control intervals and spacing (evenly spaced for now)
+        for (int i = 0; i < N; ++i) {
+            double t = -1.0 + 2.0*i / N;
+            double h = 2.0/N;
+            t_k.push_back(t);
+            h_k.push_back(h);
         }
 
         // Initialise polynomial basis and collocation / integration coefficients
@@ -68,6 +76,61 @@ public:
             // Evaluate the integral of the polynomial to get the coefficients for Gaussian quadrature
             Polynomial ip = p.anti_derivative();
             B[j] = ip(1.0);
+        }
+
+        /**** Initialise parameter variables ****/
+        for (int i = 0; i < N; ++i) {
+            SX h_par_ = SX::sym(varname("h", {i}));
+            h_par.push_back(h_par_);
+            par.push_back(h_par_);
+        }
+        for (int i = 0; i < N; ++i) {
+            SX gamma_par_ = SX::sym(varname("gamma", {i}), d + 1);
+            gamma_par.push_back(gamma_par_);
+            par.push_back(gamma_par_);
+        }
+        for (int i = 0; i < N; ++i) {
+            SX gammadot_par_ = SX::sym(varname("gammadot", {i}), d + 1);
+            gammadot_par.push_back(gammadot_par_);
+            par.push_back(gammadot_par_);
+        }
+
+        /**** Initialise control variables ****/        
+
+        // Derivative at origin fixed to zero
+        SX U_0_0 = SX::sym("U_0_0", n_phi);
+        U.push_back(U_0_0);
+
+        for (int k = 1; k <= N; ++k) {
+            SX Uk = SX::sym(varname("U", {k}), n_phi);
+            U.push_back(Uk);
+        }
+
+        /**** Initialise state variables ****/
+
+        // Free endpoint states
+        for (int k = 0; k < N; ++k) {
+            SX phi_k_0 = SX::sym(varname("phi", {k, 0}), n_phi);
+            endpoints.push_back(phi_k_0);
+            Phi.push_back(phi_k_0);
+        }
+
+        // Final state, fixed to the false vacuum
+        SX phi_N_0 = SX::sym("phi_N_0", n_phi);
+        endpoints.push_back(phi_N_0);
+        Phi.push_back(phi_N_0);
+
+        // Build finite elements (including left endpoints)
+        for (int k = 0; k < N; ++k) {
+            std::vector<SX> e_states;
+            e_states.push_back(endpoints[k]);
+            for (int j = 1; j <= d; ++j) {
+                SX phi_k_j = SX::sym(varname("phi", {k, j}), n_phi);
+                e_states.push_back(phi_k_j);
+                Phi.push_back(phi_k_j);
+            }
+            element_plot.push_back(SX::horzcat(e_states));
+            element_states.push_back(e_states);
         }
     }
 
@@ -112,15 +175,22 @@ public:
     }
 
 private:
+    int n_phi; // Number of field dimensions
     int n_dims; // Number of spatial dimensions
     double S_n; // Surface area of (d-1)-sphere
     int N; // Number of finite elements
     int d; // Degree of interpolating polynomials
-    // double grid_scale = 1.8;
     double grid_scale = 15.0;
 
-    mutable std::vector<double> t_k; // Element start times
-    mutable std::vector<double> h_k; // Element widths
+    // TODO - make these local variables as appropriate
+    casadi::SXVector Phi, U; // All control variabes
+    casadi::SXVector h_par, gamma_par, gammadot_par; // Parameter variables
+    casadi::SXVector par; // All parameter variables concatenated
+    std::vector<double> t_k; // Element start times
+    std::vector<double> h_k; // Element widths
+    std::vector<casadi::SXVector> element_states; // States within an element
+    casadi::SXVector element_plot; // Concatenated states within an element
+    std::vector<casadi::SX> endpoints; // Endpoint states
 
     // Coefficients of the collocation equation
     std::vector<std::vector<double> > C;
@@ -265,19 +335,10 @@ private:
         std::cout << "FALSE VAC: " << false_vac << std::endl;
         std::cout << "TRUE VAC: " << true_vac << std::endl;
 
-        int n_phi = false_vac.size1();
         SX phi = SX::sym("phi", n_phi);
 
         // Value of potential at false 
         DM v_true = potential(true_vac);
-        
-        // Control intervals and spacing (evenly spaced for now)
-        for (int i = 0; i < N; ++i) {
-            double t = -1.0 + 2.0*i / N;
-            double h = 2.0/N;
-            t_k.push_back(t);
-            h_k.push_back(h);
-        }
 
         // Build vector of parametric inputs (h_k, gamma, gamma_dot)
         std::vector<double> par0;
@@ -295,84 +356,44 @@ private:
             }
         }
 
-        // Begin constructing NLP
-        SXVector Phi, U, h_par, par;
-        std::vector<double> lbPhi, ubPhi, lbU, ubU;
-
         // Limits for unbounded variables
         std::vector<double> ubinf(n_phi, inf);
         std::vector<double> lbinf(n_phi, -inf);
 
-        /**** Initialise parameter variables ****/
-        SXVector gamma_par, gammadot_par;
-        for (int i = 0; i < N; ++i) {
-            SX h_par_ = SX::sym(varname("h", {i}));
-            h_par.push_back(h_par_);
-            par.push_back(h_par_);
-        }
-        for (int i = 0; i < N; ++i) {
-            SX gamma_par_ = SX::sym(varname("gamma", {i}), d + 1);
-            gamma_par.push_back(gamma_par_);
-            par.push_back(gamma_par_);
-        }
-        for (int i = 0; i < N; ++i) {
-            SX gammadot_par_ = SX::sym(varname("gammadot", {i}), d + 1);
-            gammadot_par.push_back(gammadot_par_);
-            par.push_back(gammadot_par_);
-        }
-
-        /**** Initialise control variables ****/        
-
         // Zero vector for constraint bounds
         std::vector<double> zeroes(n_phi, 0);
 
+        /**** Bounds on control variables ****/        
+        std::vector<double> lbU, ubU;
+
         // Derivative at origin fixed to zero
-        SX U_0_0 = SX::sym("U_0_0", n_phi);
-        U.push_back(U_0_0);
         append_d(lbU, zeroes);
         append_d(ubU, zeroes);
 
         for (int k = 1; k <= N; ++k) {
-            SX Uk = SX::sym(varname("U", {k}), n_phi);
-            U.push_back(Uk);
             append_d(lbU, lbinf);
             append_d(ubU, ubinf);
         }
 
-        /**** Initialise state variables ****/
+        /**** Bounds on state variables ****/
+        std::vector<double> lbPhi, ubPhi;
 
         // Free endpoint states
-        std::vector<SX> endpoints;
         for (int k = 0; k < N; ++k) {
-            SX phi_k_0 = SX::sym(varname("phi", {k, 0}), n_phi);
-            endpoints.push_back(phi_k_0);
-            Phi.push_back(phi_k_0);
             append_d(lbPhi, lbinf);
             append_d(ubPhi, ubinf);
         }
 
         // Final state, fixed to the false vacuum
-        SX phi_N_0 = SX::sym("phi_N_0", n_phi);
-        endpoints.push_back(phi_N_0);
-        Phi.push_back(phi_N_0);
         append_d(lbPhi, false_vac.get_elements());
         append_d(ubPhi, false_vac.get_elements());
 
-        // Build finite elements (including left endpoints)
-        std::vector<SXVector> element_states;
-        SXVector element_plot;
+        // Free intermediate states
         for (int k = 0; k < N; ++k) {
-            std::vector<SX> e_states;
-            e_states.push_back(endpoints[k]);
             for (int j = 1; j <= d; ++j) {
-                SX phi_k_j = SX::sym(varname("phi", {k, j}), n_phi);
-                e_states.push_back(phi_k_j);
-                Phi.push_back(phi_k_j);
                 append_d(lbPhi, lbinf);
                 append_d(ubPhi, ubinf);
             }
-            element_plot.push_back(SX::horzcat(e_states));
-            element_states.push_back(e_states);
         }
         
         /**** Useful functions of the state and control variables ****/
