@@ -45,25 +45,59 @@ private:
 // This can be used by all GenericBounceSolvers, but the CasadiSolver can
 // access the underlying Function and use automatic differentiation.
 class CasadiPotential : public GenericPotential {
-    
+   
 public:
-    CasadiPotential(casadi::Function fV_, int n_fields_) : fV(fV_), n_fields(n_fields_) {
+    CasadiPotential(casadi::Function fV_, int n_fields_, 
+        casadi::SXVector params_ = {}, std::vector<double> params0_ = {}) : 
+        fV(fV_), params(params_), n_fields(n_fields_), param_vals(params0_) {
         using namespace casadi;
-        MX phi = MX::sym("phi", n_fields);
-        MX grad = gradient(MX::vertcat(fV(phi)), phi);
-        MX hess = MX::hessian(MX::vertcat(fV(phi)), phi);
+
+        SX phi = SX::sym("phi", n_fields);
+        SXDict argV;
+        argV["phi"] = phi;
+        for (int i = 0; i < params.size(); ++i) {
+            argV[params[i].name()] = params[i];
+        }
+
+        SX grad = gradient(fV(argV).at("V"), phi);
+        SX hess = SX::hessian(fV(argV).at("V"), phi);
         
-        fGrad = Function("fGrad", {phi}, {grad}, {"phi"}, {"gradV(phi)"});
-        fHess = Function("fHess", {phi}, {hess}, {"phi"}, {"hessV(phi)"});
+        fGrad = Function("fGrad", {phi}, {grad}, {"phi"}, {"grad"});
+        fHess = Function("fHess", {phi}, {hess}, {"phi"}, {"hess"});
 
         GenericPotential::init();
     }
 
+    casadi::SXVector get_params() const {
+        return params;
+    }
+
+    std::vector<double> get_param_vals() const {
+        return param_vals;
+    }
+
+    void set_param_vals(std::vector<double> param_vals_) const {
+        // I know, I know...
+        param_vals = param_vals_;
+        grad_cache_bad = true;
+        hess_cache_bad = true;
+    }
+
+    void add_params(casadi::DMDict& args) const {
+        for (int i = 0; i < params.size(); ++i) {
+            args[params[i].name()] = param_vals[i];
+        }
+    } 
+
     virtual double operator()(const Eigen::VectorXd& coords) const override {
         using namespace casadi;
         Eigen::VectorXd coords_tr = transform_coords(coords);
-        DM coords_dm = eigen_to_dm(coords_tr);
-        DM res = fV(coords_dm)[0];
+
+        DMDict argV;
+        argV["phi"] = eigen_to_dm(coords_tr);
+        add_params(argV);
+
+        DM res = fV(argV).at("V");
         return transform_v((double) res, true);
     }
 
@@ -74,11 +108,15 @@ public:
             return transform_v((double) grad_cache_r(i), false);
         }
         else {
+            DMDict argGrad;
+            argGrad["phi"] = eigen_to_dm(coords_tr);
+            add_params(argGrad);
+
+            DM grad = fGrad(argGrad).at("grad");
+            
             grad_cache_bad = false;
-            grad_cache_l = coords_tr;
-            DM coords_dm = eigen_to_dm(coords_tr);
-            DM grad = fGrad(coords_dm)[0];
             grad_cache_r = grad;
+            grad_cache_l = coords_tr;
 
             return transform_v((double) grad_cache_r(i), false);
         }
@@ -93,11 +131,14 @@ public:
             return transform_v((double) hess_cache_r(i, j), false);
         }
         else {
+            DMDict argHess;
+            argHess["phi"] = eigen_to_dm(coords_tr);
+            add_params(argHess);
+            
+            DM hess = fHess(argHess).at("hess");
             hess_cache_bad = false;
-            hess_cache_l = coords_tr;
-            DM coords_dm = eigen_to_dm(coords_tr);
-            DM hess = fHess(coords_dm)[0];
             hess_cache_r = hess; 
+            hess_cache_l = coords_tr;
             return transform_v((double) hess_cache_r(i, j), false);
         }
     }
@@ -112,6 +153,8 @@ private:
     casadi::Function fV;
     casadi::Function fGrad;
     casadi::Function fHess;
+    casadi::SXVector params;
+    mutable std::vector<double> param_vals;
 
     int n_fields;
 

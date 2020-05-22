@@ -96,7 +96,7 @@ public:
         const Eigen::VectorXd& false_vacuum,
         const GenericPotential& g_potential) const override {
         using namespace casadi;
-
+  
         bool is_casadi = false;
 
         // Hacky way of figuring out if it's a CasadiPotential 
@@ -106,6 +106,8 @@ public:
             const CasadiPotential &c_potential = dynamic_cast<const CasadiPotential &>(g_potential);
             std::cout << "CasadiCollocationSolver2: this is a CasadiPotential" << std::endl;
             Function potential = c_potential.get_function(); 
+            v_params = c_potential.get_params();
+            v_param_vals = c_potential.get_param_vals();
             return _solve(true_vacuum, false_vacuum, potential);
         }
         catch (const std::bad_cast) {
@@ -138,6 +140,11 @@ private:
     int N; // Number of finite elements
     int d; // Degree of interpolating polynomials
     double grid_scale = 15.0;
+
+    // Potential specific parameters
+    // TODO potentially do this with locals?
+    mutable casadi::SXVector v_params;
+    mutable std::vector<double> v_param_vals;
 
     std::vector<double> t_k; // Element start times
     std::vector<double> h_k; // Element widths
@@ -188,6 +195,18 @@ private:
                 exp(-rho)/(sigma*std::pow(cosh(r0/sigma), 2)));
     }
 
+    void add_param_args(casadi::DMDict& args) const {
+        for (int i = 0; i < v_params.size(); ++i) {
+            args[v_params[i].name()] = v_param_vals[i];
+        }
+    }
+
+    void add_param_args(casadi::SXDict& args) const {
+        for (int i = 0; i < v_params.size(); ++i) {
+            args[v_params[i].name()] = v_params[i];
+        }
+    }
+
     Ansatz get_ansatz(casadi::Function fV, 
         std::vector<double> grid_pars, casadi::DM true_vac, casadi::DM false_vac) const {
 
@@ -197,6 +216,7 @@ private:
         U0.reserve(N + 1);
         casadi::DMDict argV;
         argV["par"] = grid_pars;
+        add_param_args(argV);
 
         double r0 = 0.5;
         double delta_r0 = 0.1;
@@ -229,6 +249,7 @@ private:
             }
 
             argV["Phi"] = Phi0;
+            
             V_mid = fV(argV).at("V").get_elements()[0];
 
             std::cout << "r0 = " << r0 << ", sigma = " << sigma 
@@ -294,8 +315,6 @@ private:
     }
 
     // TODO memoize this, should only be called when potential changes
-    // TODO make V0 a parameter, and push ansatz calculation to callers
-    //   (then remove the vacuum parameters, they are only needed for V0)
     NLP get_nlp(casadi::Function potential) const {
         using namespace casadi;
         using namespace std::chrono;
@@ -323,9 +342,12 @@ private:
 
         SX V0_par = SX::sym("V0");
 
-        // Grid pars + V0
+        // Grid pars + V0 + v_pars
         SXVector pars = grid_pars;
         pars.push_back(V0_par);
+        for (auto & v_param: v_params) {
+            pars.push_back(v_param);
+        }
 
         /**** Initialise control variables ****/        
         SXVector U;
@@ -387,7 +409,7 @@ private:
         
         // Estimate for the state at end of control interval
         SX phi_end = 0;
-        
+
         for (int i = 0; i <= d; ++i) {
             phi_end += D[i]*element[i];
         }
@@ -437,8 +459,13 @@ private:
         SX V_k = 0;
 
         for (int j = 1; j <= d; ++j) {
-            V_k = V_k + S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)*gammadot(j)*potential(element[j])[0];
+            SXDict argV;
+            argV["phi"] = element[j];
+            add_param_args(argV);
+            V_k = V_k + S_n*h_elem*B[j]*pow(gamma(j), n_dims - 1)*gammadot(j)*potential(argV).at("V");
         }
+
+        // TODO clean up function inputs, this is messy / verbose
 
         // We define per-element functions for the quadratures, then use them to build
         // integrals over the whole domain.
@@ -449,6 +476,7 @@ private:
         quadrature_inputs.push_back(h_elem);
         quadrature_inputs.push_back(gamma);
         quadrature_inputs.push_back(gammadot);
+        quadrature_inputs.insert(quadrature_inputs.end(), v_params.begin(), v_params.end());
         
         Function T_obj_k = Function("T_obj_k", quadrature_inputs, {T_k});
         Function V_cons_k = Function("V_cons_k", quadrature_inputs, {V_k});
@@ -464,11 +492,26 @@ private:
             quadrature_inputs_.push_back(h_par[k]);
             quadrature_inputs_.push_back(gamma_par[k]);
             quadrature_inputs_.push_back(gammadot_par[k]);
+            quadrature_inputs_.insert(quadrature_inputs_.end(), v_params.begin(), v_params.end());
+
             T += T_obj_k(quadrature_inputs_)[0];
             V += V_cons_k(quadrature_inputs_)[0];
         }
-        Function fV = Function("fV", {vertcat(Phi), vertcat(grid_pars)}, {V}, {"Phi", "par"}, {"V"});
-        Function fT = Function("fT", {vertcat(U), vertcat(grid_pars)}, {T}, {"U", "par"}, {"T"});
+        
+        SXVector V_a_arg = {vertcat(Phi), vertcat(grid_pars)};
+        StringVector V_a_argnames = {"Phi", "par"};
+        SXVector T_a_arg = {vertcat(U), vertcat(grid_pars)};
+        StringVector T_a_argnames = {"U", "par"};
+
+        for (int i = 0; i < v_params.size(); ++i) {
+            V_a_arg.push_back(v_params[i]);
+            V_a_argnames.push_back(v_params[i].name());
+            T_a_arg.push_back(v_params[i]);
+            T_a_argnames.push_back(v_params[i].name());
+        }
+
+        Function V_a = Function("fV", V_a_arg, {V}, V_a_argnames, {"V"});
+        Function T_a = Function("fT", T_a_arg, {T}, T_a_argnames, {"T"});
 
         /**** Build constraints ****/ 
         SXVector g = {}; // All constraints
@@ -503,8 +546,8 @@ private:
         // Versions of T and V suitable for evaluating on results 
         SX elements_plot = SX::horzcat(element_plot);
         Function Phi_ret = Function("elements", {W}, {elements_plot});
-        Function T_ret = Function("T_ret", {W, vertcat(grid_pars)}, {T}, {"W", "Par"}, {"T"});
-        Function V_ret = Function("V_ret", {W, vertcat(grid_pars)}, {V}, {"W", "Par"}, {"V"});
+        Function T_ret = Function("T_ret", {W, vertcat(grid_pars), vertcat(v_params)}, {T}, {"W", "Par", "v_params"}, {"T"});
+        Function V_ret = Function("V_ret", {W, vertcat(grid_pars), vertcat(v_params)}, {V}, {"W", "Par", "v_params"}, {"V"});
 
         SXDict nlp_arg = {{"f", T}, {"x", W}, {"g", G}, {"p", vertcat(pars)}};
         Dict nlp_opt = Dict();
@@ -519,9 +562,9 @@ private:
         
         NLP nlp;
         nlp.nlp = solver;
-        nlp.T_a = fT;
+        nlp.T_a = T_a;
         nlp.T_ret = T_ret;
-        nlp.V_a = fV;
+        nlp.V_a = V_a;
         nlp.V_ret = V_ret;
         nlp.Phi_ret = Phi_ret;
 
@@ -552,11 +595,13 @@ private:
         DMDict argT;
         argT["U"] = a.U0;
         argT["par"] = grid_pars;
+        add_param_args(argT);
         double T0 = nlp.T_a(argT).at("T").get_elements()[0];
 
         DMDict argV;
         argV["Phi"] = a.Phi0;
         argV["par"] = grid_pars; 
+        add_param_args(argV);
         double V0 = nlp.V_a(argV).at("V").get_elements()[0];
 
         std::cout << std::setprecision(20);
@@ -646,9 +691,10 @@ private:
 
         /**** Initialise and solve the NLP ****/
 
-        // Add V0 to parameters
+        // Add V0 + v_params to parameters
         std::vector<double> pars(grid_pars);
         pars.push_back(V0);
+        pars.insert(pars.end(), v_param_vals.begin(), v_param_vals.end());
 
         // Run the optimiser. This is the other bottleneck, so we time it too.
         DMDict arg = {{"x0", w0}, {"lbx", lbw}, {"ubx", ubw}, {"lbg", lbg}, {"ubg", ubg}, {"p", pars}};
@@ -662,6 +708,8 @@ private:
         DMDict ret_arg;
         ret_arg["W"] = res["x"];
         ret_arg["Par"] = grid_pars;
+        ret_arg["v_params"] = v_param_vals;
+
         double Tret = nlp.T_ret(ret_arg).at("T").get_elements()[0];
         double Vret = nlp.V_ret(ret_arg).at("V").get_elements()[0];
 

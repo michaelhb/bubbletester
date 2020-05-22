@@ -18,14 +18,14 @@ casadi::Function get_potential(double delta) {
 
     SX phi = SX::vertcat(SXVector({phi_1, phi_2}));
     SX V = (sqr(phi_1) + sqr(phi_2))*(1.8*sqr(phi_1 - 1) + 0.2*sqr(phi_2 - 1) - delta);
-    return Function("fV", {phi}, {V}, {"phi"}, {"V(phi)"});
+    return Function("fV", {phi}, {V}, {"phi"}, {"V"});
 }
 
 int main() {
     // using namespace casadi;
     using namespace BubbleTester;
     using namespace std::chrono;
-    double delta = 0.99;
+    double delta = 0.04;
     casadi::Function fPotential = get_potential(delta);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
@@ -61,11 +61,11 @@ int main() {
     // c_path.plot_profiles(20., "Collocation Solver (unscaled)");
 
     // Collocation Solver 2
-    std::shared_ptr<GenericBounceSolver> c2_solver = std::make_shared<CasadiCollocationSolver2>(3, 150);
+    std::shared_ptr<GenericBounceSolver> c2_solver = std::make_shared<CasadiCollocationSolver2>(2, 3, 100);
     c2_solver->set_verbose(true);
     BouncePath c2_path = c2_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << c2_path.get_action() << std::endl;
-    c2_path.plot_profiles(5., "Collocation Solver 2");
+    c2_path.plot_profiles(20., "Collocation Solver 2");
 
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
@@ -89,5 +89,5 @@ int main() {
     // // Combined plot
     // std::ostringstream title;
     // title << "Bounce path";
-    // potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c2_path, sb_path});
+    // potential.plot_2d(title.str(), 200, true_vacuum, origin, 0.1, {c2_path});
 }
