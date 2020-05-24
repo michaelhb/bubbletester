@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <stdio.h>
 #include <cmath>
+#include <chrono>
 #include "gnuplot-iostream.h"
 #include "GenericPotential.hpp"
 #include "BouncePath.hpp"

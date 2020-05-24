@@ -97,7 +97,8 @@ public:
         const GenericPotential& g_potential) const override {
         using namespace casadi;
   
-        bool is_casadi = false;
+        use_cached_nlp = (v_cache == &g_potential);
+        v_cache = &g_potential;
 
         // Hacky way of figuring out if it's a CasadiPotential 
         try {
@@ -107,13 +108,14 @@ public:
             std::cout << "CasadiCollocationSolver2: this is a CasadiPotential" << std::endl;
             Function potential = c_potential.get_function(); 
             v_params = c_potential.get_params();
-            v_param_vals = c_potential.get_param_vals();
+            v_param_vals = c_potential.get_param_vals(); 
             return _solve(true_vacuum, false_vacuum, potential);
         }
         catch (const std::bad_cast) {
             // Case 2: we are not working with a CasadiPotential,
             // so we want to wrap it in a Callback and use finite 
             // differences to calculate derivatives.
+            throw std::runtime_error("Nope");
             std::cout << "CasadiCollocationSolver2: this is not a CasadiPotential" << std::endl;
             CasadiPotentialCallback cb(g_potential);
             Function potential = cb;
@@ -141,6 +143,10 @@ private:
     int d; // Degree of interpolating polynomials
     double grid_scale = 15.0;
 
+    mutable bool use_cached_nlp = false;
+    mutable NLP NLP_cache;
+    mutable const GenericPotential * v_cache;
+    
     // Potential specific parameters
     // TODO potentially do this with locals?
     mutable casadi::SXVector v_params;
@@ -219,7 +225,7 @@ private:
         add_param_args(argV);
 
         double r0 = 0.5;
-        double delta_r0 = 0.1;
+        double delta_r0 = 0.5;
         double r0_max = 10.;
         double targetV = -1;
         double tol = 1e-3;
@@ -252,8 +258,8 @@ private:
             
             V_mid = fV(argV).at("V").get_elements()[0];
 
-            std::cout << "r0 = " << r0 << ", sigma = " << sigma 
-                      << ", V_mid = " << V_mid << std::endl; 
+            // std::cout << "r0 = " << r0 << ", sigma = " << sigma 
+            //           << ", V_mid = " << V_mid << std::endl; 
 
             if (V_mid < targetV) {
                 sig_lower  = sigma;
@@ -265,7 +271,7 @@ private:
             sigma = 0.5*(sig_lower + sig_upper);
             
             if (sigma < sigma_min) {
-                std::cout << "Increasing radius by " << delta_r0 << std::endl;
+                // std::cout << "Increasing radius by " << delta_r0 << std::endl;
                 r0 += delta_r0;
                 sig_upper = sig_upper0;
                 sig_lower = 0;
@@ -287,6 +293,8 @@ private:
 
         // Avoid Tr(1) singularity
         append_d(U0, std::vector<double>(false_vac.size1(), 0));
+
+        std::cout << "Ansatz r0 = " << r0 << ", sigma = " << sigma << std::endl;
 
         a.Phi0 = Phi0;
         a.U0 = U0;
@@ -315,9 +323,18 @@ private:
     }
 
     // TODO memoize this, should only be called when potential changes
-    NLP get_nlp(casadi::Function potential) const {
+    NLP& get_nlp(casadi::Function& potential) const {
         using namespace casadi;
         using namespace std::chrono;
+
+        if (use_cached_nlp) {
+            std::cout << "Using cached NLP" << std::endl;
+            return NLP_cache;
+        }
+        else {
+            std::cout << "Generating NLP" << std::endl;
+        }
+
         auto t_setup_start = high_resolution_clock::now();
 
         /**** Initialise parameter variables ****/
@@ -568,12 +585,14 @@ private:
         nlp.V_ret = V_ret;
         nlp.Phi_ret = Phi_ret;
 
-        return nlp;
+        NLP_cache = nlp;
+
+        return NLP_cache;
     }
     
     BouncePath _solve(const Eigen::VectorXd& true_vacuum, 
                       const Eigen::VectorXd& false_vacuum,
-                      casadi::Function potential) const {
+                      casadi::Function& potential) const {
 
         using namespace casadi;
         using namespace std::chrono;
@@ -588,8 +607,17 @@ private:
         std::vector<double> grid_pars = get_grid_pars();
 
         // Initialise NLP and get ansatz solution
+        auto t_nlp_start = high_resolution_clock::now();
         NLP nlp = get_nlp(potential);
+        auto t_nlp_end = high_resolution_clock::now();
+        auto nlp_duration = duration_cast<microseconds>(t_nlp_end - t_nlp_start).count() * 1e-6;
+        std::cout << "Creating NLP took " << nlp_duration << "s" << std::endl;
+
+        auto t_ansatz_start = high_resolution_clock::now();
         Ansatz a = get_ansatz(nlp.V_a, grid_pars, true_vac, false_vac);
+        auto t_ansatz_end = high_resolution_clock::now();
+        auto ansatz_duration = duration_cast<microseconds>(t_ansatz_end - t_ansatz_start).count() * 1e-6;
+        std::cout << "Finding ansatz took " << ansatz_duration << "s" << std::endl;
 
         // Evaluate T and V on the ansatz
         DMDict argT;
@@ -604,7 +632,6 @@ private:
         add_param_args(argV);
         double V0 = nlp.V_a(argV).at("V").get_elements()[0];
 
-        std::cout << std::setprecision(20);
         std::cout << "V(ansatz) = " << V0 << std::endl;
         std::cout << "T(ansatz) = " << T0 << std::endl;
         

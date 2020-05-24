@@ -156,8 +156,8 @@ private:
         double d = get_n_spatial_dimensions();
 
         // TEMP - hard coded ansatz parameters (r0 = 2., sigma=.5 good for delta = 0.4)
-        double r0 = 1.0;
-        double sigma = 1.0;
+        double r0 = 2.0;
+        double sigma = 0.5;
 
         // TEMP - hard coded volume factors
         double S_n;
@@ -360,20 +360,21 @@ private:
         std::cout << ">>> IPOPT lambda_star: " << res["lam_g"].get_elements()[0] << std::endl;
 
         // Print results
-        std::cout << "==== Phi_ret ====" << std::endl;
-        std::cout << rPhi << std::endl;
-        std::cout << "==== U_ret ====" << std::endl;
-        std::cout << rU << std::endl;
-        std::cout << "----" << std::endl;
+        // std::cout << "==== Phi_ret ====" << std::endl;
+        // std::cout << rPhi << std::endl;
+        // std::cout << "==== U_ret ====" << std::endl;
+        // std::cout << rU << std::endl;
+        // std::cout << "----" << std::endl;
+        std::cout << std::setprecision(20) << std::endl;
         std::cout << "T(result) = " << rT0 << std::endl;
         std::cout << "V(result) = " << rV0 << std::endl;
         std::cout << "----" << std::endl;
-        // TEMP
-        // Check the dynamics constraints on the ansatz (should be all ~0)
-        Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
-        DMVector dynArg1 = {DM(Phi0), DM(U0)};
-        DMVector dynVal1 = dynF(dynArg1);
-        std::cout << "dynF (ansatz): " << std::endl << dynVal1 << std::endl;
+        // // TEMP
+        // // Check the dynamics constraints on the ansatz (should be all ~0)
+        // Function dynF = Function("dynF", {vertcat(Phi), vertcat(U)}, {G});
+        // DMVector dynArg1 = {DM(Phi0), DM(U0)};
+        // DMVector dynVal1 = dynF(dynArg1);
+        // std::cout << "dynF (ansatz): " << std::endl << dynVal1 << std::endl;
 
         // Check the derivative estimates 
         // Function derF = Function("derF", {vertcat(Phi)}, {vertcat(dphi)});
@@ -381,7 +382,7 @@ private:
         // DMVector derVal = derF(derArg);
         // std::cout << "derF: " << std::endl << derVal << std::endl;
         
-        std::cout << std::setprecision(20);
+        // std::cout << std::setprecision(20);
         // std::cout << "Collocation points:" << std::endl;
         // for (int i = 0; i <= n_nodes; ++i) {
         //     std::cout << collocation_points[i] << std::endl;
