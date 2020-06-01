@@ -65,6 +65,10 @@ int main() {
     std::shared_ptr<GenericBounceSolver> c2_solver = std::make_shared<CasadiCollocationSolver2>(2, 3, 100);
     Eigen::VectorXd origin = Eigen::VectorXd::Zero(2);
     
+    auto t_all_start = high_resolution_clock::now();
+
+    double t_opt_only = 0;
+
     for (int i = 0; i < deltas.size(); ++i) {
         potential.set_param_vals({deltas[i]});
         Eigen::VectorXd true_vacuum(2);
@@ -75,13 +79,24 @@ int main() {
         auto t_solve_end = high_resolution_clock::now();
         auto solve_duration = duration_cast<microseconds>(t_solve_end - t_solve_start).count() * 1e-6;
         std::cout << "Found bounce in " << solve_duration << " sec" << std::endl;
+        
+        if (i > 1) {
+            t_opt_only += solve_duration;
+        }
+        
+        // std::ostringstream title;
+        // title << "Collocation solver 2: delta = " << deltas[i] << 
+        //     ", action = " << c2_path.get_action() << ", t = " << solve_duration << " sec";
 
-        std::ostringstream title;
-        title << "Collocation solver 2: delta = " << deltas[i] << 
-            ", action = " << c2_path.get_action() << ", t = " << solve_duration << " sec";
-
-        c2_path.plot_profiles(15., title.str());
+        // c2_path.plot_profiles(15., title.str());
     }
+
+    auto t_all_end = high_resolution_clock::now();
+    auto all_duration = duration_cast<microseconds>(t_all_end - t_all_start).count() * 1e-6;
+
+    std::cout << "Solved " << deltas.size() << " bounces in " << all_duration << " sec" << std::endl;
+    std::cout << "Avg time (all) = " << all_duration / deltas.size() << " sec" << std::endl;
+    std::cout << "Avg time (all except first) = " << t_opt_only / deltas.size() << " sec" << std::endl;
 
     // Find the location of the true vacuum
     // Eigen::VectorXd origin = Eigen::VectorXd::Zero(2);

@@ -25,7 +25,7 @@ int main() {
     // using namespace casadi;
     using namespace BubbleTester;
     using namespace std::chrono;
-    double delta = 0.04;
+    double delta = 0.3;
     casadi::Function fPotential = get_potential(delta);
     CasadiPotential potential = CasadiPotential(fPotential, 2);
     
@@ -65,7 +65,9 @@ int main() {
     c2_solver->set_verbose(true);
     BouncePath c2_path = c2_solver->solve(true_vacuum, origin, potential);
     std::cout << "Action = " << c2_path.get_action() << std::endl;
-    c2_path.plot_profiles(20., "Collocation Solver 2");
+    std::ostringstream title;
+    title << "Collocation solver: delta = " << delta << ", action = " << c2_path.get_action();
+    c2_path.plot_profiles(10., title.str());
 
     // BubbleProfiler
     // std::shared_ptr<GenericBounceSolver> bp_solver = std::make_shared<BP1BounceSolver>(2);
@@ -76,16 +78,18 @@ int main() {
     // std::cout << "Radii:" << std::endl << bp_path.get_radii() << std::endl;
     // std::cout << "Profiles:" << std::endl << bp_path.get_profiles() << std::endl;
 
-    // // SimpleBounce
-    // std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(150., 100., 3);
-    // sb_solver->set_verbose(true);
-    // BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
+    // SimpleBounce
+    std::shared_ptr<GenericBounceSolver> sb_solver = std::make_shared<SimpleBounceSolver>(150., 100., 3);
+    sb_solver->set_verbose(true);
+    BouncePath sb_path = sb_solver->solve(true_vacuum, origin, potential);
     // potential.plot_2d("SB Solution", 200, true_vacuum, origin, 0.1, {sb_path});
     // std::cout << "Action = " << sb_path.get_action() << std::endl;
     // // std::cout << "Radii:" << std::endl << sb_path.get_radii() << std::endl;
     // // std::cout << "Profiles:" << std::endl << sb_path.get_profiles() << std::endl;
-    // sb_path.plot_profiles(150., "SimpleBounce");
-
+    std::ostringstream title2;
+    title2 << "SimpleBounce: delta = " << delta << ", action = " << sb_path.get_action();
+    sb_path.plot_profiles(10., title2.str());
+    
     // // Combined plot
     // std::ostringstream title;
     // title << "Bounce path";

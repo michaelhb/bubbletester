@@ -226,7 +226,7 @@ private:
 
         double r0 = 0.5;
         double delta_r0 = 0.5;
-        double r0_max = 10.;
+        double r0_max = 15.;
         double targetV = -1;
         double tol = 1e-3;
         double sig_upper0 = 3.;
